@@ -1,0 +1,9 @@
+{
+  "timestamp": "2023-10-27 10:00:00",
+  "temperature": 24.5,
+  "humidity": 65,
+  "ph_level": 6.2,
+  "camera_status": "active",
+  "detection": "Healthy",
+  "recommendation": "Conditions are optimal."
+}
