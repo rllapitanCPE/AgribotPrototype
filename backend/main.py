@@ -1,11 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import random
 import time
+import os
 
 app = FastAPI()
 
-# This allows your Frontend to talk to your Backend
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,66 +15,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# This line is NEW: It tells the app where your images are stored
+# Make sure the folder 'backend/mock_images' exists!
+if not os.path.exists("mock_images"):
+    os.makedirs("mock_images")
+
+app.mount("/images", StaticFiles(directory="mock_images"), name="images")
+
+def simulate_ai_analysis():
+    outcomes = [
+        {"status": "Healthy", "image": "healthy.jpg", "advice": "No action needed. Plants are thriving."},
+        {"status": "Leaf Spot Detected", "image": "sick.jpg", "advice": "Fungal infection risk! Check humidity."},
+        {"status": "Yellowing Leaves", "image": "yellow.jpg", "advice": "Nutrient deficiency. Check pH levels."}
+    ]
+    return random.choice(outcomes)
+
 @app.get("/system-data")
-async def get_sensor_data():
-    # In Phase 4, we will replace these random numbers 
-    # with real data from your RPi sensors
-    temp = round(random.uniform(22.0, 30.0), 1)
-    hum = round(random.uniform(60.0, 80.0), 0)
+async def get_system_data():
+    temp = round(random.uniform(22.0, 29.0), 1)
     ph = round(random.uniform(5.0, 7.5), 1)
+    hum = round(random.uniform(60, 80), 0)
     
-    # Logic for Recommendations based on your Thesis thresholds
-    recommendation = "Optimal conditions."
-    status = "Stable"
-    
-    if ph < 5.5:
-        recommendation = "pH too acidic. Add pH Up."
-        status = "Warning"
-    elif ph > 6.5:
-        recommendation = "pH too alkaline. Add pH Down."
-        status = "Warning"
+    ai_report = simulate_ai_analysis()
     
     return {
-        "temperature": temp,
-        "humidity": hum,
-        "ph_level": ph,
-        "recommendation": recommendation,
-        "status": status,
+        "sensors": {
+            "temp": temp,
+            "ph": ph,
+            "humidity": hum
+        },
+        "ai_analysis": ai_report,
         "timestamp": time.strftime("%H:%M:%S")
     }
 
-
-
-# Add this function to your existing main.py
-
-def simulate_ai_detection():
-    """
-    This replaces the trained CNN model for now.
-    It randomly picks a health status to test the Dashboard.
-    """
-    results = [
-        {"label": "Healthy", "confidence": 0.98, "color": "green"},
-        {"label": "Leaf Spot Detected", "confidence": 0.85, "color": "red"},
-        {"label": "Yellowing (Nutrient Deficiency)", "confidence": 0.72, "color": "yellow"}
-    ]
-    # Simulate the AI 'choosing' a result
-    return random.choice(results)
-
-@app.get("/system-data")
-async def get_sensor_data():
-    # ... your existing sensor code ...
-    
-    ai_result = simulate_ai_detection()
-    
-    return {
-        "temperature": 24.5, # (Simplified for example)
-        "ph_level": 6.2,
-        "ai_analysis": {
-            "status": ai_result["label"],
-            "accuracy": f"{ai_result['confidence']*100}%",
-            "alert_color": ai_result["color"]
-        },
-        "recommendation": "Maintain current levels." if ai_result["label"] == "Healthy" else "Check plant health immediately."
-    }
-
-# To run this, you will eventually use: uvicorn main:app --reload
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
