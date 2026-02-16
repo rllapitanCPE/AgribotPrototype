@@ -41,4 +41,38 @@ async def get_sensor_data():
         "timestamp": time.strftime("%H:%M:%S")
     }
 
+
+
+# Add this function to your existing main.py
+
+def simulate_ai_detection():
+    """
+    This replaces the trained CNN model for now.
+    It randomly picks a health status to test the Dashboard.
+    """
+    results = [
+        {"label": "Healthy", "confidence": 0.98, "color": "green"},
+        {"label": "Leaf Spot Detected", "confidence": 0.85, "color": "red"},
+        {"label": "Yellowing (Nutrient Deficiency)", "confidence": 0.72, "color": "yellow"}
+    ]
+    # Simulate the AI 'choosing' a result
+    return random.choice(results)
+
+@app.get("/system-data")
+async def get_sensor_data():
+    # ... your existing sensor code ...
+    
+    ai_result = simulate_ai_detection()
+    
+    return {
+        "temperature": 24.5, # (Simplified for example)
+        "ph_level": 6.2,
+        "ai_analysis": {
+            "status": ai_result["label"],
+            "accuracy": f"{ai_result['confidence']*100}%",
+            "alert_color": ai_result["color"]
+        },
+        "recommendation": "Maintain current levels." if ai_result["label"] == "Healthy" else "Check plant health immediately."
+    }
+
 # To run this, you will eventually use: uvicorn main:app --reload
