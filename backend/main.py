@@ -4,10 +4,10 @@ from fastapi.staticfiles import StaticFiles
 import random
 import time
 import os
+import json
 
 app = FastAPI()
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,12 +15,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# This line is NEW: It tells the app where your images are stored
-# Make sure the folder 'backend/mock_images' exists!
-if not os.path.exists("mock_images"):
-    os.makedirs("mock_images")
+# Ensure folders exist
+for folder in ["mock_images", "logs"]:
+    if not os.path.exists(folder):
+        os.makedirs(folder)
 
 app.mount("/images", StaticFiles(directory="mock_images"), name="images")
+
+LOG_FILE = "logs/sensor_history.json"
+
+def log_data(data):
+    """Saves sensor readings to a JSON file for thesis analysis"""
+    history = []
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "r") as f:
+            try:
+                history = json.load(f)
+            except:
+                history = []
+    
+    history.append(data)
+    # Keep only the last 100 readings to save space
+    if len(history) > 100:
+        history.pop(0)
+        
+    with open(LOG_FILE, "w") as f:
+        json.dump(history, f, indent=4)
 
 def simulate_ai_analysis():
     outcomes = [
@@ -38,15 +58,28 @@ async def get_system_data():
     
     ai_report = simulate_ai_analysis()
     
-    return {
+    payload = {
         "sensors": {
             "temp": temp,
             "ph": ph,
             "humidity": hum
         },
         "ai_analysis": ai_report,
-        "timestamp": time.strftime("%H:%M:%S")
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
     }
+    
+    # Save to 'database'
+    log_data(payload)
+    
+    return payload
+
+# New endpoint to see the history
+@app.get("/history")
+async def get_history():
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "r") as f:
+            return json.load(f)
+    return []
 
 if __name__ == "__main__":
     import uvicorn
