@@ -4,6 +4,26 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <title>AgriBot-AI | Design Phase</title>
 </head>
+
+<script>
+    // This simulates data coming from your Raspberry Pi
+    function simulateSensors() {
+        const temp = (20 + Math.random() * 10).toFixed(1);
+        const hum = (50 + Math.random() * 20).toFixed(0);
+        const ph = (5.5 + Math.random() * 1.5).toFixed(1);
+
+        // Update the HTML elements
+        document.querySelectorAll('.font-mono')[0].innerText = temp + "°C";
+        document.querySelectorAll('.font-mono')[1].innerText = hum + "%";
+        document.querySelectorAll('.font-mono')[2].innerText = ph;
+
+        console.log("Simulating: Sensors updated!");
+    }
+
+    // Update every 3 seconds
+    setInterval(simulateSensors, 3000);
+</script>
+
 <body class="bg-slate-900 text-white p-6">
     <div class="max-w-5xl mx-auto">
         <div class="flex justify-between items-center border-b border-slate-700 pb-4 mb-8">
