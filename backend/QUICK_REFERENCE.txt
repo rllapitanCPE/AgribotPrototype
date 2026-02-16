@@ -1,0 +1,171 @@
+# 🚀 QUICK REFERENCE CARD
+
+## 3 Commands You Need
+
+### 1️⃣ TRAIN (First time only)
+```bash
+python anomaly_detection_model.py
+```
+⏱️ Time: ~5 seconds  
+📊 Output: Saves model files (anomaly_model.pkl, anomaly_scaler.pkl)
+
+---
+
+### 2️⃣ MONITOR (Check all data)
+```bash
+python anomaly_warnings.py
+```
+⏱️ Time: ~3 seconds  
+📊 Output: All anomalies with Plant ID, Date, values
+
+---
+
+### 3️⃣ TEST (Check one reading)
+```bash
+python anomaly_utility.py check 32 65 6.4 Plant1 2023-08-01
+```
+⏱️ Time: <1 second  
+📊 Output: ✓ NORMAL or ⚠️ ANOMALY
+
+---
+
+## 📋 Parameter Guide
+
+```
+python anomaly_utility.py check <TEMP> <HUMIDITY> <PH> [PLANT_ID] [DATE]
+
+<TEMP>       = Temperature in °C (e.g., 32)
+<HUMIDITY>   = Humidity in % (e.g., 65)
+<PH>         = pH Level (e.g., 6.4)
+[PLANT_ID]   = Optional plant identifier
+[DATE]       = Optional date for reference
+```
+
+### Examples:
+```bash
+# Detailed analysis with plant info
+python anomaly_utility.py check 32 65 6.4 Plant1 2023-08-01
+
+# Quick check (no plant info)
+python anomaly_utility.py check 32 65 6.4
+
+# Anomalous reading example
+python anomaly_utility.py check 20 50 6.0 Plant5 2023-09-09
+```
+
+---
+
+## 🎚️ Sensitivity Settings
+
+Edit `config.py` line:
+```python
+CONTAMINATION_RATE = 0.05  # Default
+```
+
+| Value | Sensitivity | Anomalies % | Use When |
+|-------|-------------|------------|----------|
+| 0.02 | Low | ~2% | Few false alarms |
+| 0.05 | Medium | ~5% | Balanced (default) |
+| 0.10 | High | ~10% | Catch more issues |
+| 0.15 | Very High | ~15% | Sensitive detection |
+
+---
+
+## 🚦 Anomaly Score Meanings
+
+```
+Score > -0.2    = ✓ NORMAL (safe)
+-0.2 to -0.5    = ⚠️ WARNING (investigate)
+Score < -0.5    = 🚨 ANOMALY (act now)
+```
+
+---
+
+## 🔄 Daily Workflow
+
+```
+Morning:        python anomaly_warnings.py
+New sensor:     python anomaly_utility.py check 32 65 6.4 P1 2024-02-16
+Weekly:         python anomaly_warnings.py > weekly_report.txt
+Monthly:        python anomaly_detection_model.py (retrain)
+```
+
+---
+
+## ⚙️ Setup Checklist
+
+- [ ] `credentials.json` in folder (for Google Sheets auth)
+- [ ] `lettuce_dataset_updated.csv` in folder (for backup data)
+- [ ] Run `python anomaly_detection_model.py` once
+- [ ] Check `anomaly_model.pkl` and `anomaly_scaler.pkl` exist
+- [ ] Test with `python anomaly_utility.py check 32 65 6.4`
+
+---
+
+## 🆘 Quick Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| "No module named joblib" | `pip install joblib scikit-learn` |
+| "credentials.json not found" | Copy credentials.json to script folder |
+| "Model not found" | Run `python anomaly_detection_model.py` |
+| "Spreadsheet not found" | Check spreadsheet name in code |
+| "No anomalies detected" | Increase CONTAMINATION_RATE to 0.10 |
+
+---
+
+## 📊 What Gets Monitored
+
+- 🌡️ **Temperature (°C)** - Normal range: 23-31°C
+- 💧 **Humidity (%)** - Normal range: 57-73%
+- 🧪 **pH Level** - Normal range: 6.2-6.6
+
+Combinations outside normal ranges are flagged as anomalies.
+
+---
+
+## 📁 Important Files
+
+```
+anomaly_detection_model.py    ← Run once to train
+anomaly_warnings.py            ← Run regularly to monitor
+anomaly_utility.py             ← Run for single readings
+config.py                      ← Edit to customize
+anomaly_model.pkl              ← Trained model (don't delete)
+anomaly_scaler.pkl             ← Data normalizer (don't delete)
+```
+
+---
+
+## 🎯 Success Indicators
+
+✅ Model trained successfully:
+```
+Total records: 3169
+Anomalies: 159 (5.02%)
+```
+
+✅ Normal reading detected:
+```
+✓ NORMAL READING
+Anomaly Score: -0.4801
+```
+
+✅ Anomaly detected:
+```
+⚠️ ANOMALY DETECTED!
+Anomaly Score: -0.6587
+```
+
+---
+
+## 💡 Pro Tips
+
+1. Save anomaly reports: `python anomaly_warnings.py > report.txt`
+2. Monitor specific plant: Edit line in anomaly_warnings.py
+3. Add more features: Edit FEATURE_COLUMNS in config.py
+4. Set up auto-monitoring: Use Windows Task Scheduler or Linux Cron
+
+---
+
+**Keep this card handy for quick reference!**
