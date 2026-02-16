@@ -49,5 +49,3 @@ This will "pull" your latest index.html and main.py onto their laptop instantly.
 
 Troubleshooting for Groupmates
 The "Images" Issue: Remind them that GitHub usually doesn't save the images if they are too large or if you didn't commit them. If their dashboard shows "Loading Mock Feed," they need to make sure they also have the mock_images folder with the 3 pictures on their own laptop!
-
-Would you like me to write a README.md file for your GitHub? This acts as a "Manual" that appears on your GitHub homepage so your groupmates (and your teacher) know exactly how to run the project.
