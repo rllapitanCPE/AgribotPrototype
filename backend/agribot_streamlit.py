@@ -47,87 +47,17 @@ if ACTUAL_LOGO:
 
 st.set_page_config(
     page_title="AgriBot-AI | Dashboard",
-    page_icon=_page_icon,
+    page_icon="🌱",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ============================================================
-# OPTIMIZED CSS FOR 7-INCH DISPLAY (cleaned)
-# ============================================================
-OPTIMIZED_CSS = """
-<style>
-/* ── GLOBAL MARGIN VARIABLES ────────────────────────────── */
-:root {
-    --page-margin-top: 0px;      /* Adjust top spacing for all pages */
-    --page-margin-bottom: 0px;   /* Adjust bottom spacing */
-    --page-margin-left: 0px;     /* Adjust left spacing */
-    --page-margin-right: 0px;    /* Adjust right spacing */
-    --login-margin-top: -20px;   /* negative moves up, positive down */
-}
-
-/* ── 1. BASE ───────────────────────────────────────────────── */
-html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    height: 100% !important;
-    width: 100% !important;
-    font-size: 14px !important;
-}
-
-/* ── 2. ROOT APP ──────────────────────────────────────────── */
-.stApp {
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    height: 100vh !important;
-    width: 100vw !important;
-    max-height: 100vh !important;
-}
-
-/* ── 3. REMOVE ALL STREAMLIT OFFSETS ──────────────────────── */
-[data-testid="stAppViewContainer"] {
-    overflow: hidden !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    height: 100vh !important;
-}
-
-[data-testid="stAppViewBlockContainer"] {
-    overflow: hidden !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    padding-top: 0 !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-}
-
-.main {
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    height: 100vh !important;
-}
-
-section.main > div {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    margin-top: 0 !important;
-}
-
-/* ── MAIN CONTAINER WITH ADJUSTABLE MARGINS ───────────────── */
-.main .block-container {
-    padding: var(--page-margin-top) var(--page-margin-right) var(--page-margin-bottom) var(--page-margin-left) !important;
-    margin: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    overflow: hidden !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
+# ============================================
+# LOGIN SYSTEM
+# ============================================
+users = {
+    "admin": {"password": "admin123", "role": "admin"},
+    "user":  {"password": "user123",  "role": "user"}
 }
 
 .main .block-container > div:first-child {
@@ -532,124 +462,124 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.role = None
 
-if "page" not in st.session_state:
-    st.session_state.page = "landing"
+def login():
+    st.title("🔐 AgriBot-AI Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if username in users and users[username]["password"] == password:
+            st.session_state.logged_in = True
+            st.session_state.role = users[username]["role"]
+            st.success("Login Successful")
+            st.rerun()
+        else:
+            st.error("Invalid credentials")
 
-USERS = {
-    "admin@agribot.ai": {"password": "admin123", "role": "admin"},
-    "user@agribot.ai":  {"password": "user123",  "role": "user"},
+if not st.session_state.logged_in:
+    login()
+    st.stop()
+
+# ============================================
+# CSS (WHITE UI + FORCE DARK TEXT)
+# ============================================
+css_code = """
+<style>
+
+/* MAIN BACKGROUND */
+[data-testid="stAppViewContainer"]{
+    background-color:#F6F7FB;
 }
 
-# ============================================================
-# PAGE: LANDING
-# ============================================================
-def show_landing():
-    if ACTUAL_LANDING_BG:
-        set_background(ACTUAL_LANDING_BG)
-    else:
-        st.markdown("""<style>.stApp { background: #0a0d12 !important; }</style>""",
-                    unsafe_allow_html=True)
+/* REMOVE HEADER */
+[data-testid="stHeader"]{
+    background:transparent;
+}
 
-    st.markdown("""
-    <style>
-    section[data-testid="stSidebar"] { display: none !important; }
-    .stApp::before { display: none !important; }
-    </style>
-    """, unsafe_allow_html=True)
+/* FORCE TEXT COLORS */
+[data-testid="stAppViewContainer"] * {
+    color: #111827 !important;
+}
 
-    col1, col2, col3 = st.columns([3, 2, 9])
-    with col2:
-        st.markdown("<div style='margin-top: 30vh;'></div>", unsafe_allow_html=True)
-        st.markdown("<div style='margin-left: -45vh;'></div>", unsafe_allow_html=True)
-        st.markdown('<div class="landing-btn-wrapper">', unsafe_allow_html=True)
-        if st.button("Let's Start", use_container_width=True, key="landing_btn"):
-            st.session_state.page = "login"
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+/* SIDEBAR */
+section[data-testid="stSidebar"]{
+    background:white;
+    border-right:1px solid #E5E7EB;
+    padding-top:20px;
+}
 
-    st.stop()
+/* SIDEBAR LOGO */
+[data-testid="stSidebar"] img{
+    width:60px;
+    margin:auto;
+    display:block;
+}
 
-# ============================================================
-# PAGE: LOGIN (FIXED – direct session assignment, no function call)
-# ============================================================
-def show_login():
-    set_background(ACTUAL_BG)
+/* SIDEBAR TITLE */
+.sidebar-title{
+    text-align:center;
+    font-size:20px;
+    font-weight:700;
+    color:#2E7D32 !important;
+    margin-top:5px;
+    margin-bottom:20px;
+}
 
-    st.markdown("""<style>
-    section[data-testid="stSidebar"] { display: none !important; }
-    html, body, [data-testid="stAppViewContainer"] {
-        overflow: hidden !important;
-        height: 100vh !important;
-        position: fixed;
-        width: 100vw;
-    }
-    header {visibility: hidden;}
-    .main .block-container { padding-top: 2rem !important; padding-bottom: 0rem !important; }
-    ::-webkit-scrollbar {display: none;}
-    </style>""", unsafe_allow_html=True)
+/* NAVIGATION */
+.stRadio label{
+    font-size:16px;
+    font-weight:500;
+    padding:8px;
+    border-radius:6px;
+}
+.stRadio label:hover{
+    background:#F3F4F6;
+}
 
-    logo_b64  = file_to_b64(ACTUAL_LOGO)
-    logo_html = (
-        f'<div style="display:flex;justify-content:center;margin-bottom:16px;">'
-        f'<img src="data:image/png;base64,{logo_b64}" '
-        f'style="width:100px;height:100px;border-radius:50%;'
-        f'border:3px solid #4CAF50;object-fit:cover;'
-        f'box-shadow:0 0 28px rgba(76,175,80,0.5);"/></div>'
-    ) if logo_b64 else ""
+/* METRIC CARDS */
+div[data-testid="stMetric"]{
+    background:white;
+    border-radius:10px;
+    padding:15px;
+    border:1px solid #E5E7EB;
+    box-shadow:0px 2px 6px rgba(0,0,0,0.05);
+}
 
-    st.markdown(
-        f'<div style="display:flex;flex-direction:column;align-items:center;margin-top:-90px;">'
-        f'{logo_html}'
-        f'<div style="text-align:center;font-size:34px;font-weight:900;color:#fff;'
-        f'letter-spacing:1px;text-shadow:0 2px 12px rgba(0,0,0,0.6);margin-bottom:4px;">'
-        f'AgriBot-AI</div>'
-        f'<div style="text-align:center;color:#81c784;font-size:12px;'
-        f'letter-spacing:3px;text-transform:uppercase;margin-bottom:20px;">'
-        f'Smart Farming &middot; Intelligent Monitoring</div>'
-        f'</div>',
-        unsafe_allow_html=True)
+/* METRIC TEXT */
+div[data-testid="stMetricLabel"]{
+    color:#6B7280 !important;
+    font-weight:600;
+}
+div[data-testid="stMetricValue"]{
+    font-size:28px;
+    font-weight:700;
+    color:#111827 !important;
+}
 
-    _, mid, _ = st.columns([1, 1.6, 1])
-    with mid:
-        with st.form("login_form"):
-            email    = st.text_input("Email",    placeholder="admin@agribot.ai")
-            password = st.text_input("Password", type="password", placeholder="••••••••")
-            if st.form_submit_button("LOGIN", use_container_width=True):
-                if email in USERS and USERS[email]["password"] == password:
-                    # Directly set session state – no function call needed
-                    st.session_state.logged_in = True
-                    st.session_state.role      = USERS[email]["role"]
-                    st.session_state.page      = "dashboard"
-                    st.rerun()
-                else:
-                    st.error("Invalid email or password")
+/* INPUTS */
+input, textarea {
+    color:#111827 !important;
+    background:white !important;
+}
 
-        st.markdown(
-            '<div style="text-align:center;margin-top:10px;">'
-            '<span style="font-size:11px;color:#388e3c;">← </span>'
-            '</div>', unsafe_allow_html=True)
-        if st.button("← Back to Landing", use_container_width=True, key="back_btn"):
-            st.session_state.page = "landing"
-            st.rerun()
+/* BUTTON */
+.stButton button{
+    border-radius:8px;
+    background:#2E7D32;
+    color:white !important;
+    border:none;
+}
 
-    st.stop()
+/* REMOVE STREAMLIT BRANDING */
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
 
-# ============================================================
-# MAIN FLOW: route by st.session_state.page
-# ============================================================
-if st.session_state.page == "landing":
-    show_landing()
+</style>
+"""
+st.markdown(css_code, unsafe_allow_html=True)
 
-if st.session_state.page == "login":
-    show_login()
-
-if not st.session_state.logged_in and st.session_state.page == "dashboard":
-    st.session_state.page = "login"
-    st.rerun()
-
-# ============================================================
-# DATA FUNCTIONS (unchanged, keep as before)
-# ============================================================
+# ============================================
+# DATA LOADING
+# ============================================
 @st.cache_resource
 def load_assets():
     try:
@@ -659,11 +589,10 @@ def load_assets():
     except Exception:
         return None, None
 
-@st.cache_resource
-def get_sheet():
-    scope = ["https://www.googleapis.com/auth/spreadsheets",
-             "https://www.googleapis.com/auth/drive"]
+def get_data():
     try:
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        
         if "gcp_service_account" in st.secrets:
             creds = ServiceAccountCredentials.from_json_keyfile_dict(
                 dict(st.secrets["gcp_service_account"]), scope)
@@ -671,364 +600,114 @@ def get_sheet():
             creds = ServiceAccountCredentials.from_json_keyfile_name(
                 CREDENTIALS_FILE, scope)
         else:
-            st.error("credentials.json not found.")
-            return None
-        return gspread.authorize(creds).open_by_key(SPREADSHEET_ID).sheet1
-    except Exception as e:
-        st.error(f"Database Connection Error: {e}")
-        return None
+            return pd.DataFrame()
 
-@st.cache_data(ttl=30)
-def get_latest_readings():
-    if sheet is None:
-        return pd.DataFrame()
-    try:
-        df = pd.DataFrame(sheet.get_all_records())
-        if df.empty:
-            return df
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        return df.sort_values('timestamp').groupby('plant_id').last().reset_index()
-    except Exception:
+        client = gspread.authorize(creds)
+        sheet = client.open("Agribot-Live-Data").sheet1
+        data = sheet.get_all_records()
+        return pd.DataFrame(data)
+    except:
         return pd.DataFrame()
 
-@st.cache_data(ttl=60)
-def get_historical_data(plant_id=None, hours=24):
-    if sheet is None:
-        return pd.DataFrame()
-    try:
-        df = pd.DataFrame(sheet.get_all_records())
-        if df.empty:
-            return df
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        df = df[df['timestamp'] >= datetime.now() - timedelta(hours=hours)]
-        if plant_id is not None:
-            df = df[df['plant_id'] == plant_id]
-        return df.sort_values('timestamp')
-    except Exception:
-        return pd.DataFrame()
+def find_column(df, possible_names):
+    for name in possible_names:
+        for col in df.columns:
+            if name.lower() in col.lower():
+                return col
+    return None
 
-@st.cache_data(ttl=30)
-def get_latest_image() -> dict:
-    if sheet is None:
-        return {}
-    try:
-        df = pd.DataFrame(sheet.get_all_records())
-        if df.empty or 'image_url' not in df.columns:
-            return {}
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        df = df.sort_values('timestamp', ascending=False)
-        for _, row in df.iterrows():
-            raw = str(row.get('image_url', '')).strip()
-            if raw.startswith("http"):
-                return {
-                    "url":       gdrive_thumbnail(raw, "w1200"),
-                    "plant_id":  int(row.get('plant_id', 0)),
-                    "timestamp": pd.to_datetime(row['timestamp']).strftime("%b %d, %Y · %I:%M %p"),
-                }
-        return {}
-    except Exception:
-        return {}
-
-# ============================================================
-# SIDEBAR (dashboard only)
-# ============================================================
-sheet    = get_sheet()
-logo_b64 = file_to_b64(ACTUAL_LOGO)
-
+# ============================================
+# SIDEBAR
+# ============================================
 with st.sidebar:
-    st.markdown(
-        f'<div style="display:flex; flex-direction:column; align-items:center; '
-        f'padding-top:8px; width:100%;">'
-        f'<div style="padding:2px; border-radius:50%; '
-        f'background:linear-gradient(145deg,#388e3c,#1b5e20); '
-        f'box-shadow:0 0 12px rgba(76,175,80,0.3); margin-bottom:2px;">'
-        f'<img src="data:image/png;base64,{logo_b64}" '
-        f'style="border-radius:50%; width:90px; height:90px; '
-        f'display:block; object-fit:cover; background:#0a0d12;"/>'
-        f'</div>'
-        f'<div style="font-size:18px; font-weight:900; color:#ffffff; '
-        f'letter-spacing:0.5px; margin-bottom:3px;">AgriBot-AI</div>'
-        f'<div style="font-size:12px; font-weight:700; letter-spacing:1px; '
-        f'text-transform:uppercase; padding:1px 8px; border-radius:20px; '
-        f'background:rgba(46,125,50,0.15); border:1px solid rgba(76,175,80,0.25); '
-        f'color:#ffffff; margin-bottom:7px;">'
-        f'{"👑 Admin" if st.session_state.role == "admin" else "🌿 Field User"}'
-        f'</div>'
-        f'<div style="font-size:14px; font-weight:700; color:#ffffff; '
-        f'letter-spacing:2px; text-transform:uppercase; width:100%; '
-        f'text-align:center; padding:0 2px; margin-bottom:2px;">Navigation</div>',
-        unsafe_allow_html=True)
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, width=60)
 
-    nav_opts = (
-        ["Live Dashboard","Analysis","System Logs","Users"]
-        if st.session_state.role == "admin"
-        else ["Live Dashboard", "Analysis"]
-    )
+    st.markdown('<div class="sidebar-title">AgriBot-AI</div>', unsafe_allow_html=True)
 
-    raw_page = st.radio("", nav_opts, label_visibility="hidden", key="nav_radio")
-    page_map = {
-        "Live Dashboard": "DASHBOARD",
-        "Analysis":       "ANALYSIS",
-        "System Logs":    "LOGS",
-        "Users":          "USERS",
-    }
-    page = page_map.get(raw_page, "DASHBOARD")
+    if st.session_state.role == "admin":
+        page = st.radio("Navigation", ["Dashboard", "Analysis", "System Logs", "Users"])
+    else:
+        page = st.radio("Navigation", ["Dashboard", "Analysis"])
 
-    if st.button("Logout", use_container_width=True):
+    if st.button("Logout"):
         st.session_state.logged_in = False
-        st.session_state.role      = None
-        st.session_state.page      = "landing"
         st.rerun()
 
-# ============================================================
-# SHARED DATA + THRESHOLDS
-# ============================================================
-model,  scaler = load_assets()
-latest         = get_latest_readings()
+# ============================================
+# LOAD DATA
+# ============================================
+model, scaler = load_assets()
+df = get_data()
 
-PH_LOW,   PH_HIGH   = 5.5, 6.5
-SOIL_DRY, SOIL_WET  = 30,  80
-TEMP_LOW, TEMP_HIGH = 15,  30
-HUM_LOW,  HUM_HIGH  = 50,  85
+if not df.empty:
+    temp_col = find_column(df, ['temp'])
+    hum_col  = find_column(df, ['humid'])
+    ph_col   = find_column(df, ['ph'])
+    soil_col = find_column(df, ['soil'])
 
-# ============================================================
-# PAGE: LIVE DASHBOARD
-# ============================================================
-if page == "DASHBOARD":
-    st.markdown(
-        '<div style="padding:6px 12px 2px;">'
-        '<div style="font-size:20px;font-weight:900;color:#fff;line-height:1.2;">'
-        'Real-Time Monitoring</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
-        'Greenhouse Overview — AgriBot-AI</div>'
-        '</div>',
-        unsafe_allow_html=True)
+    val_temp = df[temp_col].iloc[-1] if temp_col else 0
+    val_hum  = df[hum_col].iloc[-1] if hum_col else 0
+    val_ph   = df[ph_col].iloc[-1] if ph_col else 0
+    val_soil = df[soil_col].iloc[-1] if soil_col else 0
+else:
+    val_temp = val_hum = val_ph = val_soil = 0
 
-    if latest.empty:
-        st.warning("No sensor data yet — waiting for the Pi...")
-        st.stop()
-
-    avg_temp = float(latest['temp_c'].mean())
-    avg_hum  = float(latest['humidity'].mean())
-    avg_ph   = float(latest['ph'].mean())
-    avg_soil = float(latest['soil_moisture'].mean())
+# ============================================
+# DASHBOARD
+# ============================================
+if page == "Dashboard":
+    st.markdown("## Dashboard")
+    st.caption("Smart Hydroponics Monitoring System")
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("TEMP",     f"{avg_temp:.1f} °C")
-    m2.metric("HUMIDITY", f"{avg_hum:.0f} %")
-    m3.metric("PH",       f"{avg_ph:.2f}")
-    m4.metric("SOIL",     f"{avg_soil:.0f} %")
+    with m1: st.metric("🌡 Temperature", f"{val_temp}°C")
+    with m2: st.metric("💧 Humidity", f"{val_hum}%")
+    with m3: st.metric("🧪 pH", f"{val_ph}")
+    with m4: st.metric("🌱 Soil", f"{val_soil}%")
 
-    img_data = get_latest_image()
+    st.markdown("---")
 
-    cam_col, right_col = st.columns([3, 2], gap="small")
+    col1, col2 = st.columns(2)
 
-    with cam_col:
-        st.markdown('<div style="margin-top: 10px;">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title">📷 Plant Health Feed</div>',
-                    unsafe_allow_html=True)
-        if img_data.get("url"):
-            st.markdown(
-                f'<img src="{img_data["url"]}" '
-                f'style="width:100%;max-height:230px;object-fit:cover;'
-                f'border-radius:8px;"/>',
-                unsafe_allow_html=True)
-            pid_txt = f"🥬 Plant {img_data['plant_id']}" if img_data.get("plant_id") else ""
-            ts_txt  = f"🕒 {img_data['timestamp']}"       if img_data.get("timestamp") else ""
-            st.markdown(
-                f'<div class="cam-meta">{pid_txt}&nbsp;&nbsp;{ts_txt}<br>'
-                f'Captured at '
-                f'<span class="sched-badge">7:00 AM</span>'
-                f'<span class="sched-badge">12:00 NN</span>'
-                f'<span class="sched-badge">12:30 PM</span></div>'
-                f'<a href="{img_data["url"]}" target="_blank" class="drive-link">'
-                f'☁️ View in Drive ↗</a>',
-                unsafe_allow_html=True)
+    with col1:
+        st.subheader("Sensor Trends")
+        if not df.empty:
+            st.line_chart(df)
+
+    with col2:
+        st.subheader("AI Status")
+        if model and scaler:
+            st.success("System Running Normally")
         else:
-            st.markdown(
-                '<div class="cam-placeholder">'
-                '<div style="font-size:36px;margin-bottom:8px;">📷</div>'
-                '<div style="font-size:12px;font-weight:700;color:#4CAF50;">No image yet</div>'
-                '<div style="font-size:10px;color:#2e7d32;margin-top:100px;">'
-                'Captures at '
-                '<span class="sched-badge">7:00 AM</span>'
-                '<span class="sched-badge">12:00 NN</span>'
-                '<span class="sched-badge">12:30 PM</span></div>'
-                '</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.warning("AI Model not loaded")
 
-    with right_col:
-        if not latest.empty:
-            last_ts = pd.to_datetime(latest['timestamp']).max()
-            st.markdown(
-                f'<div style="text-align:right;font-size:9px;color:#388e3c;'
-                f'margin-bottom:6px;">🔄 {last_ts.strftime("%H:%M:%S")}</div>',
-                unsafe_allow_html=True)
+# ============================================
+# ANALYSIS
+# ============================================
+elif page == "Analysis":
+    st.title("Analysis")
+    if not df.empty:
+        st.line_chart(df)
 
-        st.markdown('<div class="section-title">🤖 AI Health Status</div>',
-                    unsafe_allow_html=True)
-        p1 = latest[latest['plant_id'] == 1]
-        if not p1.empty and model and scaler:
-            try:
-                feat = np.array([[float(p1.iloc[0]['temp_c']),
-                                  float(p1.iloc[0]['humidity']),
-                                  float(p1.iloc[0]['ph'])]])
-                pred = model.predict(scaler.transform(feat))[0]
-                if pred == -1:
-                    st.error("🚨 **ALERT** — Anomaly detected.")
-                else:
-                    st.success("✅ **HEALTHY** — Optimal conditions.")
-            except Exception as e:
-                st.info(f"Processing... ({e})")
-        else:
-            st.warning("Awaiting data / AI model...")
+# ============================================
+# LOGS
+# ============================================
+elif page == "System Logs":
+    st.title("Logs")
+    if not df.empty:
+        st.dataframe(df.tail(20))
 
-        st.markdown("<div style='margin:6px 0 2px;'></div>", unsafe_allow_html=True)
-        st.markdown('<div class="section-title">🔔 Alerts</div>',
-                    unsafe_allow_html=True)
-        alerts = []
-        for _, plant in latest.iterrows():
-            pid  = int(plant['plant_id'])
-            soil = float(plant['soil_moisture'])
-            ph   = float(plant['ph'])
-            if soil < SOIL_DRY:
-                alerts.append(f"🌱 P{pid}: soil dry ({soil:.0f}%)")
-            elif soil > SOIL_WET:
-                alerts.append(f"🌱 P{pid}: soil wet ({soil:.0f}%)")
-            if ph < PH_LOW or ph > PH_HIGH:
-                alerts.append(f"🧪 P{pid}: pH {ph:.2f}")
-        if avg_temp < TEMP_LOW or avg_temp > TEMP_HIGH:
-            alerts.append(f"🌡️ Temp: {avg_temp:.1f}°C")
-        if avg_hum < HUM_LOW or avg_hum > HUM_HIGH:
-            alerts.append(f"💧 Hum: {avg_hum:.0f}%")
-        if alerts:
-            for a in alerts[:5]:
-                st.markdown(f'<div class="alert-item">{a}</div>', unsafe_allow_html=True)
-        else:
-            st.success("✅ All parameters in range.")
-
-# ============================================================
-# PAGE: ANALYSIS
-# ============================================================
-elif page == "ANALYSIS":
-    st.markdown(
-        '<div style="padding:6px 12px 4px;">'
-        '<div style="font-size:18px;font-weight:900;color:#fff;">Historical Trends</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
-        'Sensor data over time</div></div>',
-        unsafe_allow_html=True)
-
-    if not latest.empty:
-        sc1, sc2, sc3 = st.columns([1, 1, 1])
-        with sc1:
-            sensor_choice = st.selectbox("Sensor", [
-                "Temperature (°C)", "Humidity (%)", "pH", "Soil Moisture (%)"])
-        with sc2:
-            plant_sel = st.selectbox("Plant", list(range(1, 11)))
-        with sc3:
-            time_range = st.selectbox("Range", ["24 hours", "7 days", "30 days"])
-            hours = {"24 hours": 24, "7 days": 168, "30 days": 720}[time_range]
-
-        hist_df = get_historical_data(plant_id=plant_sel, hours=hours)
-        if not hist_df.empty:
-            col_map = {
-                "Temperature (°C)": ("temp_c",        "°C"),
-                "Humidity (%)":     ("humidity",       "%"),
-                "pH":               ("ph",             "pH"),
-                "Soil Moisture (%)":("soil_moisture",  "%"),
-            }
-            y_col, y_label = col_map[sensor_choice]
-            fig = px.line(hist_df, x='timestamp', y=y_col,
-                          title=f"{sensor_choice} — Plant {plant_sel}")
-            fig.update_layout(
-                height=210,
-                margin=dict(t=32, b=20, l=30, r=10),
-                yaxis_title=y_label,
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(13,17,23,0.85)',
-                font_color='#a5d6a7',
-                title_font_color='#fff',
-                title_font_size=12,
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-            if sensor_choice == "Soil Moisture (%)":
-                st.markdown('<div class="section-title">🌱 All Plants — Current Soil</div>',
-                            unsafe_allow_html=True)
-                bar = px.bar(latest.sort_values('plant_id'),
-                             x='plant_id', y='soil_moisture',
-                             color='soil_moisture', color_continuous_scale='Greens',
-                             labels={'plant_id': 'Plant', 'soil_moisture': 'Soil %'})
-                bar.update_layout(
-                    height=180,
-                    margin=dict(t=10, b=20, l=30, r=10),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(13,17,23,0.85)',
-                    font_color='#a5d6a7',
-                )
-                st.plotly_chart(bar, use_container_width=True)
-        else:
-            st.warning("No data for this plant in the selected time range.")
-    else:
-        st.warning("No data available yet.")
-
-# ============================================================
-# PAGE: SYSTEM LOGS
-# ============================================================
-elif page == "LOGS":
-    st.markdown(
-        '<div style="padding:6px 12px 4px;">'
-        '<div style="font-size:18px;font-weight:900;color:#fff;">System Logs</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
-        'Last 24 hours</div></div>',
-        unsafe_allow_html=True)
-
-    logs = get_historical_data(plant_id=None, hours=24)
-    if not logs.empty:
-        def classify(r):
-            if r['temp_c'] < TEMP_LOW or r['temp_c'] > TEMP_HIGH:
-                return "🌡️ Temp"
-            if r['humidity'] < HUM_LOW or r['humidity'] > HUM_HIGH:
-                return "💧 Humidity"
-            if r['ph'] < PH_LOW or r['ph'] > PH_HIGH:
-                return "🧪 pH"
-            if r['soil_moisture'] < SOIL_DRY or r['soil_moisture'] > SOIL_WET:
-                return "🌱 Soil"
-            return "Normal"
-
-        logs['event'] = logs.apply(classify, axis=1)
-        cols = ['timestamp', 'plant_id', 'temp_c', 'humidity', 'soil_moisture', 'ph', 'event']
-        cfg  = {
-            "timestamp":    "Time",
-            "plant_id":     "Plant",
-            "temp_c":       "Temp (°C)",
-            "humidity":     "Hum (%)",
-            "soil_moisture":"Soil %",
-            "ph":           "pH",
-            "event":        "Event",
-        }
-        if 'image_url' in logs.columns:
-            cols.insert(-1, 'image_url')
-            cfg['image_url'] = st.column_config.LinkColumn("📸 Image")
-
-        st.dataframe(logs[cols].tail(50), use_container_width=True,
-                     hide_index=True, height=300, column_config=cfg)
-    else:
-        st.info("No logs available.")
-
-# ============================================================
-# PAGE: USER MANAGEMENT
-# ============================================================
-elif page == "USERS":
-    st.markdown(
-        '<div style="padding:6px 12px 4px;">'
-        '<div style="font-size:18px;font-weight:900;color:#fff;">Admin Panel</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
-        'Registered accounts</div></div>',
-        unsafe_allow_html=True)
-
+# ============================================
+# USERS
+# ============================================
+elif page == "Users":
+    st.title("Users")
     st.table(pd.DataFrame({
-        "Username": ["admin@agribot.ai", "user@agribot.ai"],
-        "Role":     ["Administrator",    "Standard User"]
+        "Username": ["admin", "user"],
+        "Role": ["Admin", "User"]
     }))
-    st.info("Future feature: add / remove users via database.")
+
+# AUTO REFRESH
+time.sleep(10)
+st.rerun()
