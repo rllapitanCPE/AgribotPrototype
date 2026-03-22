@@ -5,11 +5,11 @@ import gspread
 import numpy as np
 import os
 import base64
+import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 import plotly.express as px
 from streamlit_autorefresh import st_autorefresh
-
 
 # ============================================================
 # PATHS
@@ -26,19 +26,17 @@ LANDING_BG_PATH = os.path.join(SCRIPT_DIR, "landpage.png")
 PI_LANDING_BG   = os.path.expanduser("~/env/Thesis code/backend/landpage.png")
 WIN_LANDING_BG  = r"C:\Users\admin\Downloads\AgribotPrototype\backend\landpage.png"
 
-ACTUAL_LOGO       = next((p for p in [LOGO_PATH, PI_LOGO, WIN_LOGO]                    if os.path.exists(p)), "")
-ACTUAL_BG         = next((p for p in [BG_PATH,   PI_BG,   WIN_BG]                     if os.path.exists(p)), "")
+ACTUAL_LOGO       = next((p for p in [LOGO_PATH, PI_LOGO, WIN_LOGO]                   if os.path.exists(p)), "")
+ACTUAL_BG         = next((p for p in [BG_PATH,   PI_BG,   WIN_BG]                    if os.path.exists(p)), "")
 ACTUAL_LANDING_BG = next((p for p in [LANDING_BG_PATH, PI_LANDING_BG, WIN_LANDING_BG] if os.path.exists(p)), "")
 
 CREDENTIALS_FILE = os.path.join(SCRIPT_DIR, "..", "credentials.json")
 if not os.path.exists(CREDENTIALS_FILE):
     CREDENTIALS_FILE = os.path.expanduser("~/env/Thesis code/credentials.json")
 
-SPREADSHEET_ID   = "1mYScsUkoZn84FIoO_QMaku3gZT3Z9df72kPE3ray9-A"
-DRIVE_FOLDER_ID  = "1g6Tg0UZSuFrJchPyRJLgcJmM_X4Ggatm"
-DRIVE_FOLDER_URL = f"https://drive.google.com/drive/folders/{DRIVE_FOLDER_ID}"
+SPREADSHEET_ID = "1mYScsUkoZn84FIoO_QMaku3gZT3Z9df72kPE3ray9-A"
 
-# ── Tab favicon ──────────────────────────────────────────────
+# ── Tab favicon ───────────────────────────────────────────────
 _page_icon = "🌱"
 if ACTUAL_LOGO:
     try:
@@ -55,210 +53,433 @@ st.set_page_config(
 )
 
 # ============================================================
-# CSS
+# OPTIMIZED CSS FOR 7-INCH DISPLAY (cleaned)
 # ============================================================
 OPTIMIZED_CSS = """
 <style>
+/* ── GLOBAL MARGIN VARIABLES ────────────────────────────── */
 :root {
-    --page-margin-top: 0px; --page-margin-bottom: 0px;
-    --page-margin-left: 0px; --page-margin-right: 0px;
+    --page-margin-top: 0px;      /* Adjust top spacing for all pages */
+    --page-margin-bottom: 0px;   /* Adjust bottom spacing */
+    --page-margin-left: 0px;     /* Adjust left spacing */
+    --page-margin-right: 0px;    /* Adjust right spacing */
+    --login-margin-top: -20px;   /* negative moves up, positive down */
 }
+
+/* ── 1. BASE ───────────────────────────────────────────────── */
 html, body {
-    margin: 0 !important; padding: 0 !important;
-    overflow: hidden !important; height: 100% !important;
-    width: 100% !important; font-size: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    height: 100% !important;
+    width: 100% !important;
+    font-size: 14px !important;
 }
+
+/* ── 2. ROOT APP ──────────────────────────────────────────── */
 .stApp {
-    margin: 0 !important; padding: 0 !important;
-    overflow: hidden !important; height: 100vh !important;
-    width: 100vw !important; max-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    height: 100vh !important;
+    width: 100vw !important;
+    max-height: 100vh !important;
 }
+
+/* ── 3. REMOVE ALL STREAMLIT OFFSETS ──────────────────────── */
 [data-testid="stAppViewContainer"] {
-    overflow: hidden !important; padding: 0 !important;
-    margin: 0 !important; height: 100vh !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: 100vh !important;
 }
+
 [data-testid="stAppViewBlockContainer"] {
-    overflow: hidden !important; padding: 0 !important;
-    margin: 0 !important; padding-top: 0 !important;
-    height: 100vh !important; max-height: 100vh !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    padding-top: 0 !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
 }
+
 .main {
-    margin: 0 !important; padding: 0 !important;
-    overflow: hidden !important; height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    height: 100vh !important;
 }
+
 section.main > div {
-    padding-top: 0 !important; padding-bottom: 0 !important; margin-top: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
 }
+
+/* ── MAIN CONTAINER WITH ADJUSTABLE MARGINS ───────────────── */
 .main .block-container {
-    padding: var(--page-margin-top) var(--page-margin-right)
-             var(--page-margin-bottom) var(--page-margin-left) !important;
-    margin: 0 !important; max-width: 100% !important; width: 100% !important;
-    overflow: hidden !important; height: 100vh !important; max-height: 100vh !important;
-    display: flex; flex-direction: column; box-sizing: border-box;
+    padding: var(--page-margin-top) var(--page-margin-right) var(--page-margin-bottom) var(--page-margin-left) !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow: hidden !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
 }
-.main .block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
-[data-testid="stVerticalBlock"] { gap: 5px !important; }
-#MainMenu, footer, header,
-[data-testid="stHeader"], [data-testid="stToolbar"],
-[data-testid="stDecoration"], [data-testid="stStatusWidget"],
-[data-testid="collapsedControl"], .stDeployButton,
-button[title="View App"], button[title="Manage app"],
-button[kind="headerNoSpacing"], a[href*="streamlit.io"],
-.viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
-#GithubIcon, .css-1dp5vir {
-    display: none !important; visibility: hidden !important;
+
+.main .block-container > div:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
 }
+
+[data-testid="stVerticalBlock"] {
+    gap: 5px !important;
+}
+
+/* ── 4. HIDE STREAMLIT CHROME ─────────────────────────────── */
+#MainMenu,
+footer,
+header,
+[data-testid="stHeader"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+[data-testid="collapsedControl"],
+.stDeployButton,
+button[title="View App"],
+button[title="Manage app"],
+button[kind="headerNoSpacing"],
+a[href*="streamlit.io"],
+.viewerBadge_container__1QSob,
+.styles_viewerBadge__CvC9N,
+#GithubIcon,
+.css-1dp5vir {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* ── 5. SIDEBAR ────────────────────────────────────────────── */
 section[data-testid="stSidebar"] {
-    width: 230px !important; min-width: 230px !important;
+    width: 230px !important;
+    min-width: 230px !important;
     background: #023f23 !important;
     border-right: 1px solid rgba(46,125,50,0.5) !important;
-    overflow: hidden !important; height: 100vh !important; padding-top: 0 !important;
+    overflow: hidden !important;
+    height: 100vh !important;
+    padding-top: 0 !important;
 }
+
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-    display: flex !important; flex-direction: column !important;
-    align-items: center !important; padding: 0 4px 4px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding: 0 4px 4px !important;
 }
-[data-testid="stSidebar"] [data-testid="stElementToolbar"] { display: none !important; }
+
+[data-testid="stSidebar"] [data-testid="stElementToolbar"] {
+    display: none !important;
+}
+
+/* ── 6. SIDEBAR NAVIGATION RADIO ───────────────────────────── */
 .stRadio > div {
-    gap: 20px !important; width: 100% !important;
-    flex-direction: column !important; margin-bottom: 8px !important;
+    gap: 20px !important;
+    width: 100% !important;
+    flex-direction: column !important;
+    margin-bottom: 8px !important;
 }
+
 section[data-testid="stSidebar"] .stRadio label {
-    font-size: 16px !important; font-weight: 700 !important; color: #ffffff !important;
-    letter-spacing: 0.8px !important; text-transform: uppercase !important;
-    background: rgba(46,125,50,0.12) !important; border: none !important;
-    border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
-    cursor: pointer !important; transition: all 0.2s !important; min-height: 44px !important;
-    display: flex !important; align-items: center !important;
-    margin-top: -15px !important; padding-top: 0 !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    letter-spacing: 0.8px !important;
+    text-transform: uppercase !important;
+    background: rgba(46,125,50,0.12) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 6px 8px !important;
+    width: 100% !important;
+    cursor: pointer !important;
+    transition: all 0.2s !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    margin-top: -15px !important;
+    padding-top: 0 !important;
 }
+
+/* Hide radio circle */
 section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] > div:first-child {
     display: none !important;
 }
+
 section[data-testid="stSidebar"] .stRadio label:hover {
-    background: rgba(76,175,80,0.12) !important; color: #ffffff !important;
+    background: rgba(76,175,80,0.12) !important;
+    color: #ffffff !important;
 }
-section[data-testid="stSidebar"] div[role="radiogroup"]
-label[data-baseweb="radio"]:has(input:checked) {
+
+section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb="radio"]:has(input:checked) {
     background: rgba(46,125,50,0.22) !important;
     border-left: 3px solid #4CAF50 !important;
-    color: #ffffff !important; padding-left: 9px !important;
+    color: #ffffff !important;
+    padding-left: 9px !important;
 }
+
 section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
-    margin: 0 !important; color: #ffffff !important;
+    margin: 0 !important;
+    color: #ffffff !important;
 }
+
+/* ── 7. LOGOUT BUTTON ──────────────────────────────────────── */
 [data-testid="stSidebar"] .stButton > button {
-    font-size: 16px !important; font-weight: 700 !important; color: #ffffff !important;
-    letter-spacing: 0.8px !important; text-transform: uppercase !important;
-    background: rgba(46,125,50,0.12) !important; border: none !important;
-    border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
-    min-height: 44px !important; transition: all 0.2s !important; margin-top: 8px !important;
-    cursor: pointer !important; display: flex !important;
-    align-items: center !important; justify-content: center !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    letter-spacing: 0.8px !important;
+    text-transform: uppercase !important;
+    background: rgba(46,125,50,0.12) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 6px 8px !important;
+    width: 100% !important;
+    min-height: 44px !important;
+    transition: all 0.2s !important;
+    margin-top: 8px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
+
 [data-testid="stSidebar"] .stButton > button:hover {
     background: rgba(198,40,40,0.15) !important;
-    border-color: rgba(198,40,40,0.5) !important; color: #ffffff !important;
+    border-color: rgba(198,40,40,0.5) !important;
+    color: #ffffff !important;
 }
+
+/* ── 8. METRIC CARDS ───────────────────────────────────────── */
 div[data-testid="stMetric"] {
-    background: #023f23 !important; border: 1px solid rgba(76,175,80,0.3) !important;
-    border-radius: 10px !important; padding: 8px 6px !important; text-align: center !important;
+    background: #023f23 !important;
+    border: 1px solid rgba(76,175,80,0.3) !important;
+    border-radius: 10px !important;
+    padding: 8px 6px !important;
+    text-align: center !important;
 }
 div[data-testid="stMetricLabel"] {
-    font-weight: 700 !important; font-size: 11px !important; color: #66bb6a !important;
-    letter-spacing: 1.2px !important; text-transform: uppercase !important;
+    font-weight: 700 !important;
+    font-size: 11px !important;
+    color: #66bb6a !important;
+    letter-spacing: 1.2px !important;
+    text-transform: uppercase !important;
     justify-content: center !important;
 }
 div[data-testid="stMetricValue"] {
-    font-size: 24px !important; font-weight: 900 !important;
-    color: #fff !important; margin-top: 1px !important;
+    font-size: 24px !important;
+    font-weight: 900 !important;
+    color: #fff !important;
+    margin-top: 1px !important;
+}
+
+/* ── 9. DASHBOARD CUSTOM CARDS ─────────────────────────────── */
+.cam-card {
+    background: rgba(13,17,23,0.9);
+    border: 1px solid rgba(46,125,50,0.4);
+    border-radius: 12px;
+    padding: 10px;
+    height: 100%;
 }
 .section-title {
-    font-size: 12px !important; font-weight: 700 !important; color: #66bb6a !important;
-    letter-spacing: 1.2px !important; text-transform: uppercase !important;
-    margin-bottom: 10px !important; margin-top: 0 !important;
-    border-left: 3px solid #4CAF50; padding-left: 7px;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #66bb6a !important;
+    letter-spacing: 1.2px !important;
+    text-transform: uppercase !important;
+    margin-bottom: 15px !important;
+    margin-top: 0 !important;
+    border-left: 3px solid #4CAF50;
+    padding-left: 7px;
 }
 .alert-item {
-    padding: 6px 10px; background: rgba(183,28,28,0.12);
-    border: 1px solid rgba(183,28,28,0.3); color: #ef9a9a;
-    border-radius: 8px; margin: 6px 0; font-size: 13px !important;
+    padding: 6px 10px;
+    background: rgba(183,28,28,0.12);
+    border: 1px solid rgba(183,28,28,0.3);
+    color: #ef9a9a;
+    border-radius: 8px;
+    margin: 10px 0;
+    font-size: 13px !important;
 }
 .sched-badge {
-    display: inline-block; background: rgba(21,101,192,0.2);
-    border: 1px solid rgba(21,101,192,0.5); border-radius: 5px;
-    padding: 2px 6px; font-size: 10px !important; color: #90CAF9;
-    font-weight: 700; margin: 0 2px;
+    display: inline-block;
+    background: rgba(21,101,192,0.2);
+    border: 1px solid rgba(21,101,192,0.5);
+    border-radius: 5px;
+    padding: 2px 6px;
+    font-size: 10px !important;
+    color: #90CAF9;
+    font-weight: 700;
+    margin: 0 2px;
 }
 .cam-meta {
-    font-size: 10px !important; color: #66bb6a;
-    margin-top: 5px; line-height: 1.6;
+    font-size: 10px !important;
+    color: #66bb6a;
+    margin-top: 15px;
+    line-height: 1.5;
 }
 .drive-link {
-    display: inline-block; margin-top: 6px;
-    background: rgba(46,125,50,0.15); border: 1px solid rgba(76,175,80,0.3);
-    border-radius: 7px; padding: 4px 10px; color: #81c784;
-    font-size: 11px !important; text-decoration: none;
+    display: inline-block;
+    margin-top: 5px;
+    background: rgba(46,125,50,0.15);
+    border: 1px solid rgba(76,175,80,0.3);
+    border-radius: 7px;
+    padding: 4px 10px;
+    color: #81c784;
+    font-size: 11px !important;
+    text-decoration: none;
 }
 .cam-placeholder {
-    display: flex; flex-direction: column; align-items: center;
-    justify-content: center; min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
     background: rgba(46,125,50,0.04);
-    border: 2px dashed rgba(46,125,50,0.3); border-radius: 10px;
-    text-align: center; padding: 20px;
+    border: 2px dashed rgba(46,125,50,0.3);
+    border-radius: 10px;
+    text-align: center;
+    padding: 20px;
 }
-.js-plotly-plot, .plotly, .plot-container { max-height: 210px !important; }
-[data-testid="stPlotlyChart"] { height: 210px !important; overflow: hidden !important; }
+
+/* ── 10. PLOTLY CHART HEIGHT ───────────────────────────────── */
+.js-plotly-plot, .plotly, .plot-container {
+    max-height: 210px !important;
+}
+[data-testid="stPlotlyChart"] {
+    height: 210px !important;
+    overflow: hidden !important;
+}
+
+/* ── 11. DATAFRAME ─────────────────────────────────────────── */
 [data-testid="stDataFrame"] {
-    max-height: 300px !important; overflow-y: auto !important; font-size: 13px !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    font-size: 13px !important;
 }
+
+/* ── 12. STREAMLIT ALERTS ──────────────────────────────────── */
 [data-testid="stAlert"] {
-    padding: 8px 12px !important; font-size: 13px !important;
-    border-radius: 8px !important; margin: 4px 0 !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    border-radius: 8px !important;
+    margin: 4px 0 !important;
 }
-[data-testid="stSelectbox"] { margin-bottom: 4px !important; }
-[data-baseweb="select"] { min-height: 42px !important; }
-.stSelectbox label { font-size: 12px !important; color: #66bb6a !important; margin-bottom: 2px !important; }
-.stTextInput label { color: #c8e6c9 !important; font-weight: 600 !important; font-size: 13px !important; }
+
+/* ── 13. SELECTBOX & INPUTS ────────────────────────────────── */
+[data-testid="stSelectbox"] {
+    margin-bottom: 4px !important;
+}
+[data-baseweb="select"] {
+    min-height: 42px !important;
+}
+.stSelectbox label {
+    font-size: 12px !important;
+    color: #66bb6a !important;
+    margin-bottom: 2px !important;
+}
+.stTextInput label {
+    color: #c8e6c9 !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+}
+
+/* ── 14. LANDING PAGE BUTTON ───────────────────────────────── */
 .landing-btn-wrapper button {
     background: linear-gradient(135deg, #2e7d32, #66bb6a) !important;
-    border: 2px solid rgba(255,255,255,0.3) !important; border-radius: 50px !important;
-    color: white !important; font-size: 24px !important; font-weight: 700 !important;
-    padding: 14px 48px !important; cursor: pointer !important;
-    letter-spacing: 2px !important; text-transform: uppercase !important;
-    min-height: 64px !important; transition: transform 0.2s, box-shadow 0.2s !important;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important; width: auto !important;
+    border: 2px solid rgba(255,255,255,0.3) !important;
+    border-radius: 50px !important;
+    color: white !important;
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    padding: 14px 48px !important;
+    cursor: pointer !important;
+    letter-spacing: 2px !important;
+    text-transform: uppercase !important;
+    min-height: 64px !important;
+    transition: transform 0.2s, box-shadow 0.2s !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+    width: auto !important;
 }
 .landing-btn-wrapper button:hover {
     transform: scale(1.05) !important;
     box-shadow: 0 12px 32px rgba(76,175,80,0.7) !important;
 }
+/* Hide sidebar on landing page */
+.landing-page section[data-testid="stSidebar"] {
+    display: none !important;
+}
+
+/* ── 15. LOGIN FORM ────────────────────────────────────────── */
 [data-testid="stForm"] {
     background: linear-gradient(160deg,
         rgba(27,94,32,0.65) 0%, rgba(46,125,50,0.55) 100%) !important;
-    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border-radius: 18px; border: 1px solid rgba(165,214,167,0.35);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.35); padding: 26px 36px 34px !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 18px;
+    border: 1px solid rgba(165,214,167,0.35);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    padding: 26px 36px 34px !important;
 }
 [data-testid="stForm"] input {
-    background: rgba(255,255,255,0.1) !important; color: #fff !important;
-    border: 1px solid rgba(165,214,167,0.45) !important; border-radius: 10px !important;
-    font-size: 16px !important; min-height: 48px !important;
+    background: rgba(255,255,255,0.1) !important;
+    color: #fff !important;
+    border: 1px solid rgba(165,214,167,0.45) !important;
+    border-radius: 10px !important;
+    font-size: 16px !important;
+    min-height: 48px !important;
 }
-[data-testid="stForm"] input::placeholder { color: rgba(200,230,200,0.6) !important; }
+[data-testid="stForm"] input::placeholder {
+    color: rgba(200,230,200,0.6) !important;
+}
 [data-testid="stForm"] button[kind="primaryFormSubmit"] {
     background: linear-gradient(90deg, #2e7d32, #66bb6a) !important;
-    border: none !important; color: #fff !important; font-weight: 700 !important;
-    border-radius: 10px !important; letter-spacing: 1.5px; font-size: 16px !important;
-    padding: 12px !important; min-height: 52px !important; margin-top: 4px !important;
+    border: none !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+    letter-spacing: 1.5px;
+    font-size: 16px !important;
+    padding: 12px !important;
+    min-height: 52px !important;
+    margin-top: 4px !important;
 }
-[data-testid="column"] { height: 100%; padding: 0 4px !important; }
-.main .block-container { display: flex; flex-direction: column; overflow: hidden; }
-.main .block-container > [data-testid="stVerticalBlock"] { flex: 1; overflow: hidden; }
+
+/* ── 16. PULSE ANIMATION ───────────────────────────────────── */
+@keyframes pulse {
+    0%,100% { box-shadow: 0 0 5px #4CAF50; }
+    50%      { box-shadow: 0 0 14px #4CAF50; opacity: 0.7; }
+}
+
+/* ── 17. COLUMNS FILL HEIGHT ───────────────────────────────── */
+[data-testid="column"] {
+    height: 100%;
+    padding: 0 4px !important;
+}
+
+/* ── 18. MAIN DASHBOARD FLEX LAYOUT ────────────────────────── */
+.main .block-container {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.main .block-container > [data-testid="stVerticalBlock"] {
+    flex: 1;
+    overflow: hidden;
+}
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
-
 
 # ============================================================
 # HELPERS
@@ -270,27 +491,16 @@ def file_to_b64(path: str) -> str:
     except Exception:
         return ""
 
-
-def gdrive_direct_url(url: str) -> str:
-    """
-    Convert any Google Drive URL to uc?export=view format.
-    This renders in <img> tags without requiring Google login,
-    as long as the file is shared as 'Anyone with the link'.
-    """
+def gdrive_thumbnail(url: str, size: str = "w1200") -> str:
     if not url:
         return ""
     try:
-        fid = None
         if "id=" in url:
-            fid = url.split("id=")[1].split("&")[0].strip()
-        elif "/file/d/" in url:
-            fid = url.split("/file/d/")[1].split("/")[0].strip()
-        if fid:
-            return f"https://drive.google.com/uc?export=view&id={fid}"
+            fid = url.split("id=")[1].split("&")[0]
+            return f"https://drive.google.com/thumbnail?id={fid}&sz={size}"
     except Exception:
         pass
     return url
-
 
 def set_background(path: str):
     b64 = file_to_b64(path)
@@ -300,70 +510,27 @@ def set_background(path: str):
     st.markdown(f"""<style>
     .stApp {{
         background-image: url("data:{mime};base64,{b64}");
-        background-size: cover; background-position: center;
-        background-repeat: no-repeat; background-attachment: fixed;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
     }}
     .stApp::before {{
-        content: ""; position: fixed; inset: 0;
-        background: rgba(0,0,0,0.52); z-index: 0; pointer-events: none;
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.52);
+        z-index: 0;
+        pointer-events: none;
     }}
     </style>""", unsafe_allow_html=True)
 
-
-def safe_read_sheet(sheet_obj) -> pd.DataFrame:
-    """
-    Read sheet using get_all_values() instead of get_all_records()
-    to avoid crashing on duplicate column headers in the spreadsheet.
-    Returns a clean DataFrame with the 7 expected columns.
-    """
-    try:
-        data = sheet_obj.get_all_values()
-        if not data or len(data) < 2:
-            return pd.DataFrame()
-
-        # Deduplicate headers so pandas doesn't raise an error
-        raw_headers = data[0]
-        seen = {}
-        headers = []
-        for h in raw_headers:
-            h = h.strip()
-            if h in seen:
-                seen[h] += 1
-                headers.append(f"{h}_{seen[h]}")
-            else:
-                seen[h] = 0
-                headers.append(h)
-
-        df = pd.DataFrame(data[1:], columns=headers)
-
-        # Keep only the 7 expected columns (ignore any extras/duplicates)
-        expected = ['timestamp', 'plant_id', 'temp_c', 'humidity',
-                    'soil_moisture', 'ph', 'image_url']
-        df = df[[c for c in expected if c in df.columns]]
-
-        # Type conversions
-        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-        for col in ['temp_c', 'humidity', 'soil_moisture', 'ph']:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-        if 'plant_id' in df.columns:
-            df['plant_id'] = pd.to_numeric(df['plant_id'], errors='coerce')
-
-        # Drop rows where essential fields are missing
-        df = df.dropna(subset=['timestamp', 'plant_id'])
-        return df
-
-    except Exception as e:
-        st.error(f"Sheet read error: {e}")
-        return pd.DataFrame()
-
-
 # ============================================================
-# SESSION STATE
+# SESSION STATE — always start at landing page
 # ============================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-    st.session_state.role      = None
+    st.session_state.role = None
 
 if "page" not in st.session_state:
     st.session_state.page = "landing"
@@ -373,7 +540,6 @@ USERS = {
     "user@agribot.ai":  {"password": "user123",  "role": "user"},
 }
 
-
 # ============================================================
 # PAGE: LANDING
 # ============================================================
@@ -381,46 +547,54 @@ def show_landing():
     if ACTUAL_LANDING_BG:
         set_background(ACTUAL_LANDING_BG)
     else:
-        st.markdown("<style>.stApp { background: #0a0d12 !important; }</style>",
+        st.markdown("""<style>.stApp { background: #0a0d12 !important; }</style>""",
                     unsafe_allow_html=True)
-    st.markdown("""<style>
+
+    st.markdown("""
+    <style>
     section[data-testid="stSidebar"] { display: none !important; }
     .stApp::before { display: none !important; }
-    </style>""", unsafe_allow_html=True)
+    </style>
+    """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([3, 2, 9])
     with col2:
         st.markdown("<div style='margin-top: 30vh;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-left: -45vh;'></div>", unsafe_allow_html=True)
         st.markdown('<div class="landing-btn-wrapper">', unsafe_allow_html=True)
         if st.button("Let's Start", use_container_width=True, key="landing_btn"):
             st.session_state.page = "login"
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
+
     st.stop()
 
-
 # ============================================================
-# PAGE: LOGIN
+# PAGE: LOGIN (FIXED – direct session assignment, no function call)
 # ============================================================
 def show_login():
     set_background(ACTUAL_BG)
+
     st.markdown("""<style>
     section[data-testid="stSidebar"] { display: none !important; }
     html, body, [data-testid="stAppViewContainer"] {
-        overflow: hidden !important; height: 100vh !important;
-        position: fixed; width: 100vw;
+        overflow: hidden !important;
+        height: 100vh !important;
+        position: fixed;
+        width: 100vw;
     }
-    header { visibility: hidden; }
-    .main .block-container { padding-top: 2rem !important; padding-bottom: 0 !important; }
-    ::-webkit-scrollbar { display: none; }
+    header {visibility: hidden;}
+    .main .block-container { padding-top: 2rem !important; padding-bottom: 0rem !important; }
+    ::-webkit-scrollbar {display: none;}
     </style>""", unsafe_allow_html=True)
 
     logo_b64  = file_to_b64(ACTUAL_LOGO)
     logo_html = (
         f'<div style="display:flex;justify-content:center;margin-bottom:16px;">'
         f'<img src="data:image/png;base64,{logo_b64}" '
-        f'style="width:100px;height:100px;border-radius:50%;border:3px solid #4CAF50;'
-        f'object-fit:cover;box-shadow:0 0 28px rgba(76,175,80,0.5);"/></div>'
+        f'style="width:100px;height:100px;border-radius:50%;'
+        f'border:3px solid #4CAF50;object-fit:cover;'
+        f'box-shadow:0 0 28px rgba(76,175,80,0.5);"/></div>'
     ) if logo_b64 else ""
 
     st.markdown(
@@ -432,7 +606,8 @@ def show_login():
         f'<div style="text-align:center;color:#81c784;font-size:12px;'
         f'letter-spacing:3px;text-transform:uppercase;margin-bottom:20px;">'
         f'Smart Farming &middot; Intelligent Monitoring</div>'
-        f'</div>', unsafe_allow_html=True)
+        f'</div>',
+        unsafe_allow_html=True)
 
     _, mid, _ = st.columns([1, 1.6, 1])
     with mid:
@@ -441,6 +616,7 @@ def show_login():
             password = st.text_input("Password", type="password", placeholder="••••••••")
             if st.form_submit_button("LOGIN", use_container_width=True):
                 if email in USERS and USERS[email]["password"] == password:
+                    # Directly set session state – no function call needed
                     st.session_state.logged_in = True
                     st.session_state.role      = USERS[email]["role"]
                     st.session_state.page      = "dashboard"
@@ -448,14 +624,18 @@ def show_login():
                 else:
                     st.error("Invalid email or password")
 
+        st.markdown(
+            '<div style="text-align:center;margin-top:10px;">'
+            '<span style="font-size:11px;color:#388e3c;">← </span>'
+            '</div>', unsafe_allow_html=True)
         if st.button("← Back to Landing", use_container_width=True, key="back_btn"):
             st.session_state.page = "landing"
             st.rerun()
+
     st.stop()
 
-
 # ============================================================
-# ROUTING
+# MAIN FLOW: route by st.session_state.page
 # ============================================================
 if st.session_state.page == "landing":
     show_landing()
@@ -467,9 +647,8 @@ if not st.session_state.logged_in and st.session_state.page == "dashboard":
     st.session_state.page = "login"
     st.rerun()
 
-
 # ============================================================
-# DATA FUNCTIONS
+# DATA FUNCTIONS (unchanged, keep as before)
 # ============================================================
 @st.cache_resource
 def load_assets():
@@ -479,7 +658,6 @@ def load_assets():
         return model, scaler
     except Exception:
         return None, None
-
 
 @st.cache_resource
 def get_sheet():
@@ -497,95 +675,96 @@ def get_sheet():
             return None
         return gspread.authorize(creds).open_by_key(SPREADSHEET_ID).sheet1
     except Exception as e:
-        st.error(f"Sheets connection error: {e}")
+        st.error(f"Database Connection Error: {e}")
         return None
-
 
 @st.cache_data(ttl=30)
 def get_latest_readings():
-    """Most recent row per plant — used for metric cards and alerts."""
     if sheet is None:
         return pd.DataFrame()
-    df = safe_read_sheet(sheet)
-    if df.empty:
-        return df
-    return df.sort_values('timestamp').groupby('plant_id').last().reset_index()
-
+    try:
+        df = pd.DataFrame(sheet.get_all_records())
+        if df.empty:
+            return df
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        return df.sort_values('timestamp').groupby('plant_id').last().reset_index()
+    except Exception:
+        return pd.DataFrame()
 
 @st.cache_data(ttl=60)
 def get_historical_data(plant_id=None, hours=24):
-    """All rows within the time window, optionally filtered by plant."""
     if sheet is None:
         return pd.DataFrame()
-    df = safe_read_sheet(sheet)
-    if df.empty:
-        return df
-    df = df[df['timestamp'] >= datetime.now() - timedelta(hours=hours)]
-    if plant_id is not None:
-        df = df[df['plant_id'] == plant_id]
-    return df.sort_values('timestamp')
-
+    try:
+        df = pd.DataFrame(sheet.get_all_records())
+        if df.empty:
+            return df
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df[df['timestamp'] >= datetime.now() - timedelta(hours=hours)]
+        if plant_id is not None:
+            df = df[df['plant_id'] == plant_id]
+        return df.sort_values('timestamp')
+    except Exception:
+        return pd.DataFrame()
 
 @st.cache_data(ttl=30)
-def get_latest_plant_image() -> dict:
-    """
-    Returns the single most recently captured plant image as a dict:
-    { url, plant_id, timestamp }
-    Only considers rows where image_url contains 'id=' (real Drive file URLs).
-    """
+def get_latest_image() -> dict:
     if sheet is None:
         return {}
-    df = safe_read_sheet(sheet)
-    if df.empty or 'image_url' not in df.columns:
+    try:
+        df = pd.DataFrame(sheet.get_all_records())
+        if df.empty or 'image_url' not in df.columns:
+            return {}
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df.sort_values('timestamp', ascending=False)
+        for _, row in df.iterrows():
+            raw = str(row.get('image_url', '')).strip()
+            if raw.startswith("http"):
+                return {
+                    "url":       gdrive_thumbnail(raw, "w1200"),
+                    "plant_id":  int(row.get('plant_id', 0)),
+                    "timestamp": pd.to_datetime(row['timestamp']).strftime("%b %d, %Y · %I:%M %p"),
+                }
         return {}
-    # Filter to rows that have a real Drive file URL
-    df = df[df['image_url'].astype(str).str.contains("id=", na=False)]
-    if df.empty:
+    except Exception:
         return {}
-    df = df.sort_values('timestamp', ascending=False)
-    row = df.iloc[0]
-    return {
-        "url":       gdrive_direct_url(str(row['image_url']).strip()),
-        "plant_id":  int(row['plant_id']),
-        "timestamp": pd.to_datetime(row['timestamp']).strftime("%b %d, %Y · %I:%M %p"),
-    }
-
 
 # ============================================================
-# SIDEBAR
+# SIDEBAR (dashboard only)
 # ============================================================
 sheet    = get_sheet()
 logo_b64 = file_to_b64(ACTUAL_LOGO)
 
 with st.sidebar:
     st.markdown(
-        f'<div style="display:flex;flex-direction:column;align-items:center;'
-        f'padding-top:8px;width:100%;">'
-        f'<div style="padding:2px;border-radius:50%;'
-        f'background:linear-gradient(145deg,#388e3c,#1b5e20);'
-        f'box-shadow:0 0 12px rgba(76,175,80,0.3);margin-bottom:2px;">'
+        f'<div style="display:flex; flex-direction:column; align-items:center; '
+        f'padding-top:8px; width:100%;">'
+        f'<div style="padding:2px; border-radius:50%; '
+        f'background:linear-gradient(145deg,#388e3c,#1b5e20); '
+        f'box-shadow:0 0 12px rgba(76,175,80,0.3); margin-bottom:2px;">'
         f'<img src="data:image/png;base64,{logo_b64}" '
-        f'style="border-radius:50%;width:90px;height:90px;'
-        f'display:block;object-fit:cover;background:#0a0d12;"/>'
+        f'style="border-radius:50%; width:90px; height:90px; '
+        f'display:block; object-fit:cover; background:#0a0d12;"/>'
         f'</div>'
-        f'<div style="font-size:18px;font-weight:900;color:#ffffff;'
-        f'letter-spacing:0.5px;margin-bottom:3px;">AgriBot-AI</div>'
-        f'<div style="font-size:12px;font-weight:700;letter-spacing:1px;'
-        f'text-transform:uppercase;padding:1px 8px;border-radius:20px;'
-        f'background:rgba(46,125,50,0.15);border:1px solid rgba(76,175,80,0.25);'
-        f'color:#ffffff;margin-bottom:7px;">'
+        f'<div style="font-size:18px; font-weight:900; color:#ffffff; '
+        f'letter-spacing:0.5px; margin-bottom:3px;">AgriBot-AI</div>'
+        f'<div style="font-size:12px; font-weight:700; letter-spacing:1px; '
+        f'text-transform:uppercase; padding:1px 8px; border-radius:20px; '
+        f'background:rgba(46,125,50,0.15); border:1px solid rgba(76,175,80,0.25); '
+        f'color:#ffffff; margin-bottom:7px;">'
         f'{"👑 Admin" if st.session_state.role == "admin" else "🌿 Field User"}'
         f'</div>'
-        f'<div style="font-size:14px;font-weight:700;color:#ffffff;'
-        f'letter-spacing:2px;text-transform:uppercase;width:100%;'
-        f'text-align:center;padding:0 2px;margin-bottom:2px;">Navigation</div>',
+        f'<div style="font-size:14px; font-weight:700; color:#ffffff; '
+        f'letter-spacing:2px; text-transform:uppercase; width:100%; '
+        f'text-align:center; padding:0 2px; margin-bottom:2px;">Navigation</div>',
         unsafe_allow_html=True)
 
     nav_opts = (
-        ["Live Dashboard", "Analysis", "System Logs", "Users"]
+        ["Live Dashboard","Analysis","System Logs","Users"]
         if st.session_state.role == "admin"
         else ["Live Dashboard", "Analysis"]
     )
+
     raw_page = st.radio("", nav_opts, label_visibility="hidden", key="nav_radio")
     page_map = {
         "Live Dashboard": "DASHBOARD",
@@ -601,7 +780,6 @@ with st.sidebar:
         st.session_state.page      = "landing"
         st.rerun()
 
-
 # ============================================================
 # SHARED DATA + THRESHOLDS
 # ============================================================
@@ -613,10 +791,6 @@ SOIL_DRY, SOIL_WET  = 30,  80
 TEMP_LOW, TEMP_HIGH = 15,  30
 HUM_LOW,  HUM_HIGH  = 50,  85
 
-# Auto-refresh every 30 seconds
-st_autorefresh(interval=30000, key="autorefresh")
-
-
 # ============================================================
 # PAGE: LIVE DASHBOARD
 # ============================================================
@@ -625,10 +799,10 @@ if page == "DASHBOARD":
         '<div style="padding:6px 12px 2px;">'
         '<div style="font-size:20px;font-weight:900;color:#fff;line-height:1.2;">'
         'Real-Time Monitoring</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;'
-        'margin-top:-75px;font-weight:bold;">'
+        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
         'Greenhouse Overview — AgriBot-AI</div>'
-        '</div>', unsafe_allow_html=True)
+        '</div>',
+        unsafe_allow_html=True)
 
     if latest.empty:
         st.warning("No sensor data yet — waiting for the Pi...")
@@ -645,59 +819,44 @@ if page == "DASHBOARD":
     m3.metric("PH",       f"{avg_ph:.2f}")
     m4.metric("SOIL",     f"{avg_soil:.0f} %")
 
-    # Fetch latest single plant image
-    img_data = get_latest_plant_image()
+    img_data = get_latest_image()
 
     cam_col, right_col = st.columns([3, 2], gap="small")
 
-    # ── Plant Health Feed — single large live photo ──────────
     with cam_col:
-        st.markdown('<div style="margin-top:10px;">', unsafe_allow_html=True)
+        st.markdown('<div style="margin-top: 10px;">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">📷 Plant Health Feed</div>',
                     unsafe_allow_html=True)
-
         if img_data.get("url"):
-            # Large single image display
             st.markdown(
                 f'<img src="{img_data["url"]}" '
-                f'style="width:100%;max-height:260px;object-fit:cover;'
-                f'border-radius:8px;margin-bottom:6px;" '
-                f'onerror="this.style.display=\'none\'"/>',
+                f'style="width:100%;max-height:230px;object-fit:cover;'
+                f'border-radius:8px;"/>',
                 unsafe_allow_html=True)
-
             pid_txt = f"🥬 Plant {img_data['plant_id']}" if img_data.get("plant_id") else ""
             ts_txt  = f"🕒 {img_data['timestamp']}"       if img_data.get("timestamp") else ""
             st.markdown(
-                f'<div class="cam-meta">{pid_txt} &nbsp;&nbsp; {ts_txt}<br>'
-                f'Captures at '
+                f'<div class="cam-meta">{pid_txt}&nbsp;&nbsp;{ts_txt}<br>'
+                f'Captured at '
                 f'<span class="sched-badge">7:00 AM</span>'
                 f'<span class="sched-badge">12:00 NN</span>'
-                f'<span class="sched-badge">5:00 PM</span>'
-                f'</div>',
+                f'<span class="sched-badge">12:30 PM</span></div>'
+                f'<a href="{img_data["url"]}" target="_blank" class="drive-link">'
+                f'☁️ View in Drive ↗</a>',
                 unsafe_allow_html=True)
-
-            st.markdown(
-                f'<a href="{DRIVE_FOLDER_URL}" target="_blank" class="drive-link">'
-                f'☁️ View all in Drive ↗</a>',
-                unsafe_allow_html=True)
-
         else:
             st.markdown(
                 '<div class="cam-placeholder">'
                 '<div style="font-size:36px;margin-bottom:8px;">📷</div>'
-                '<div style="font-size:12px;font-weight:700;color:#4CAF50;">'
-                'No image yet</div>'
-                '<div style="font-size:10px;color:#2e7d32;margin-top:10px;">'
+                '<div style="font-size:12px;font-weight:700;color:#4CAF50;">No image yet</div>'
+                '<div style="font-size:10px;color:#2e7d32;margin-top:100px;">'
                 'Captures at '
                 '<span class="sched-badge">7:00 AM</span>'
                 '<span class="sched-badge">12:00 NN</span>'
-                '<span class="sched-badge">5:00 PM</span>'
-                '</div></div>',
-                unsafe_allow_html=True)
-
+                '<span class="sched-badge">12:30 PM</span></div>'
+                '</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── AI Status + Alerts ───────────────────────────────────
     with right_col:
         if not latest.empty:
             last_ts = pd.to_datetime(latest['timestamp']).max()
@@ -748,7 +907,6 @@ if page == "DASHBOARD":
         else:
             st.success("✅ All parameters in range.")
 
-
 # ============================================================
 # PAGE: ANALYSIS
 # ============================================================
@@ -756,8 +914,8 @@ elif page == "ANALYSIS":
     st.markdown(
         '<div style="padding:6px 12px 4px;">'
         '<div style="font-size:18px;font-weight:900;color:#fff;">Historical Trends</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;'
-        'margin-top:-75px;font-weight:bold;">Sensor data over time</div></div>',
+        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
+        'Sensor data over time</div></div>',
         unsafe_allow_html=True)
 
     if not latest.empty:
@@ -774,10 +932,10 @@ elif page == "ANALYSIS":
         hist_df = get_historical_data(plant_id=plant_sel, hours=hours)
         if not hist_df.empty:
             col_map = {
-                "Temperature (°C)": ("temp_c",       "°C"),
-                "Humidity (%)":     ("humidity",      "%"),
-                "pH":               ("ph",            "pH"),
-                "Soil Moisture (%)":("soil_moisture", "%"),
+                "Temperature (°C)": ("temp_c",        "°C"),
+                "Humidity (%)":     ("humidity",       "%"),
+                "pH":               ("ph",             "pH"),
+                "Soil Moisture (%)":("soil_moisture",  "%"),
             }
             y_col, y_label = col_map[sensor_choice]
             fig = px.line(hist_df, x='timestamp', y=y_col,
@@ -802,7 +960,8 @@ elif page == "ANALYSIS":
                              color='soil_moisture', color_continuous_scale='Greens',
                              labels={'plant_id': 'Plant', 'soil_moisture': 'Soil %'})
                 bar.update_layout(
-                    height=180, margin=dict(t=10, b=20, l=30, r=10),
+                    height=180,
+                    margin=dict(t=10, b=20, l=30, r=10),
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(13,17,23,0.85)',
                     font_color='#a5d6a7',
@@ -813,7 +972,6 @@ elif page == "ANALYSIS":
     else:
         st.warning("No data available yet.")
 
-
 # ============================================================
 # PAGE: SYSTEM LOGS
 # ============================================================
@@ -821,8 +979,8 @@ elif page == "LOGS":
     st.markdown(
         '<div style="padding:6px 12px 4px;">'
         '<div style="font-size:18px;font-weight:900;color:#fff;">System Logs</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;'
-        'margin-top:-75px;font-weight:bold;">Last 24 hours</div></div>',
+        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
+        'Last 24 hours</div></div>',
         unsafe_allow_html=True)
 
     logs = get_historical_data(plant_id=None, hours=24)
@@ -839,16 +997,15 @@ elif page == "LOGS":
             return "Normal"
 
         logs['event'] = logs.apply(classify, axis=1)
-        cols = ['timestamp', 'plant_id', 'temp_c', 'humidity',
-                'soil_moisture', 'ph', 'event']
+        cols = ['timestamp', 'plant_id', 'temp_c', 'humidity', 'soil_moisture', 'ph', 'event']
         cfg  = {
-            "timestamp":     "Time",
-            "plant_id":      "Plant",
-            "temp_c":        "Temp (°C)",
-            "humidity":      "Hum (%)",
-            "soil_moisture": "Soil %",
-            "ph":            "pH",
-            "event":         "Event",
+            "timestamp":    "Time",
+            "plant_id":     "Plant",
+            "temp_c":       "Temp (°C)",
+            "humidity":     "Hum (%)",
+            "soil_moisture":"Soil %",
+            "ph":           "pH",
+            "event":        "Event",
         }
         if 'image_url' in logs.columns:
             cols.insert(-1, 'image_url')
@@ -859,7 +1016,6 @@ elif page == "LOGS":
     else:
         st.info("No logs available.")
 
-
 # ============================================================
 # PAGE: USER MANAGEMENT
 # ============================================================
@@ -867,8 +1023,8 @@ elif page == "USERS":
     st.markdown(
         '<div style="padding:6px 12px 4px;">'
         '<div style="font-size:18px;font-weight:900;color:#fff;">Admin Panel</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;'
-        'margin-top:-75px;font-weight:bold;">Registered accounts</div></div>',
+        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
+        'Registered accounts</div></div>',
         unsafe_allow_html=True)
 
     st.table(pd.DataFrame({
@@ -876,4 +1032,3 @@ elif page == "USERS":
         "Role":     ["Administrator",    "Standard User"]
     }))
     st.info("Future feature: add / remove users via database.")
-
