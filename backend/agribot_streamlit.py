@@ -498,6 +498,10 @@ def gdrive_thumbnail(url: str, size: str = "w1200") -> str:
         if "id=" in url:
             fid = url.split("id=")[1].split("&")[0]
             return f"https://drive.google.com/thumbnail?id={fid}&sz={size}"
+        # Handle direct folder or file links
+        if "/file/d/" in url:
+            fid = url.split("/file/d/")[1].split("/")[0]
+            return f"https://drive.google.com/thumbnail?id={fid}&sz={size}"
     except Exception:
         pass
     return url
