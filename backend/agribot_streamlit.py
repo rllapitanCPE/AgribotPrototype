@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import plotly.express as px
 from streamlit_autorefresh import st_autorefresh
 
+
 # ============================================================
 # PATHS
 # ============================================================
@@ -26,15 +27,17 @@ LANDING_BG_PATH = os.path.join(SCRIPT_DIR, "landpage.png")
 PI_LANDING_BG   = os.path.expanduser("~/env/Thesis code/backend/landpage.png")
 WIN_LANDING_BG  = r"C:\Users\admin\Downloads\AgribotPrototype\backend\landpage.png"
 
-ACTUAL_LOGO       = next((p for p in [LOGO_PATH, PI_LOGO, WIN_LOGO]                   if os.path.exists(p)), "")
-ACTUAL_BG         = next((p for p in [BG_PATH,   PI_BG,   WIN_BG]                    if os.path.exists(p)), "")
+ACTUAL_LOGO       = next((p for p in [LOGO_PATH, PI_LOGO, WIN_LOGO]                    if os.path.exists(p)), "")
+ACTUAL_BG         = next((p for p in [BG_PATH,   PI_BG,   WIN_BG]                     if os.path.exists(p)), "")
 ACTUAL_LANDING_BG = next((p for p in [LANDING_BG_PATH, PI_LANDING_BG, WIN_LANDING_BG] if os.path.exists(p)), "")
 
 CREDENTIALS_FILE = os.path.join(SCRIPT_DIR, "..", "credentials.json")
 if not os.path.exists(CREDENTIALS_FILE):
     CREDENTIALS_FILE = os.path.expanduser("~/env/Thesis code/credentials.json")
 
-SPREADSHEET_ID = "1mYScsUkoZn84FIoO_QMaku3gZT3Z9df72kPE3ray9-A"
+SPREADSHEET_ID        = "1mYScsUkoZn84FIoO_QMaku3gZT3Z9df72kPE3ray9-A"
+DRIVE_FOLDER_ID       = "1g6Tg0UZSuFrJchPyRJLgcJmM_X4Ggatm"
+DRIVE_FOLDER_URL      = f"https://drive.google.com/drive/folders/{DRIVE_FOLDER_ID}"
 
 # ── Tab favicon ───────────────────────────────────────────────
 _page_icon = "🌱"
@@ -53,433 +56,193 @@ st.set_page_config(
 )
 
 # ============================================================
-# OPTIMIZED CSS FOR 7-INCH DISPLAY (cleaned)
+# OPTIMIZED CSS FOR 7-INCH DISPLAY
 # ============================================================
 OPTIMIZED_CSS = """
 <style>
-/* ── GLOBAL MARGIN VARIABLES ────────────────────────────── */
 :root {
-    --page-margin-top: 0px;      /* Adjust top spacing for all pages */
-    --page-margin-bottom: 0px;   /* Adjust bottom spacing */
-    --page-margin-left: 0px;     /* Adjust left spacing */
-    --page-margin-right: 0px;    /* Adjust right spacing */
-    --login-margin-top: -20px;   /* negative moves up, positive down */
+    --page-margin-top: 0px;
+    --page-margin-bottom: 0px;
+    --page-margin-left: 0px;
+    --page-margin-right: 0px;
+    --login-margin-top: -20px;
 }
-
-/* ── 1. BASE ───────────────────────────────────────────────── */
 html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    height: 100% !important;
-    width: 100% !important;
+    margin: 0 !important; padding: 0 !important;
+    overflow: hidden !important; height: 100% !important; width: 100% !important;
     font-size: 14px !important;
 }
-
-/* ── 2. ROOT APP ──────────────────────────────────────────── */
 .stApp {
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    height: 100vh !important;
-    width: 100vw !important;
-    max-height: 100vh !important;
+    margin: 0 !important; padding: 0 !important;
+    overflow: hidden !important; height: 100vh !important;
+    width: 100vw !important; max-height: 100vh !important;
 }
-
-/* ── 3. REMOVE ALL STREAMLIT OFFSETS ──────────────────────── */
 [data-testid="stAppViewContainer"] {
-    overflow: hidden !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    height: 100vh !important;
+    overflow: hidden !important; padding: 0 !important;
+    margin: 0 !important; height: 100vh !important;
 }
-
 [data-testid="stAppViewBlockContainer"] {
-    overflow: hidden !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    padding-top: 0 !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
+    overflow: hidden !important; padding: 0 !important;
+    margin: 0 !important; padding-top: 0 !important;
+    height: 100vh !important; max-height: 100vh !important;
 }
-
-.main {
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    height: 100vh !important;
-}
-
-section.main > div {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    margin-top: 0 !important;
-}
-
-/* ── MAIN CONTAINER WITH ADJUSTABLE MARGINS ───────────────── */
+.main { margin: 0 !important; padding: 0 !important; overflow: hidden !important; height: 100vh !important; }
+section.main > div { padding-top: 0 !important; padding-bottom: 0 !important; margin-top: 0 !important; }
 .main .block-container {
     padding: var(--page-margin-top) var(--page-margin-right) var(--page-margin-bottom) var(--page-margin-left) !important;
-    margin: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    overflow: hidden !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
+    margin: 0 !important; max-width: 100% !important; width: 100% !important;
+    overflow: hidden !important; height: 100vh !important; max-height: 100vh !important;
+    display: flex; flex-direction: column; box-sizing: border-box;
 }
-
-.main .block-container > div:first-child {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
+.main .block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+[data-testid="stVerticalBlock"] { gap: 5px !important; }
+#MainMenu, footer, header,
+[data-testid="stHeader"], [data-testid="stToolbar"],
+[data-testid="stDecoration"], [data-testid="stStatusWidget"],
+[data-testid="collapsedControl"], .stDeployButton,
+button[title="View App"], button[title="Manage app"],
+button[kind="headerNoSpacing"], a[href*="streamlit.io"],
+.viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
+#GithubIcon, .css-1dp5vir {
+    display: none !important; visibility: hidden !important;
 }
-
-[data-testid="stVerticalBlock"] {
-    gap: 5px !important;
-}
-
-/* ── 4. HIDE STREAMLIT CHROME ─────────────────────────────── */
-#MainMenu,
-footer,
-header,
-[data-testid="stHeader"],
-[data-testid="stToolbar"],
-[data-testid="stDecoration"],
-[data-testid="stStatusWidget"],
-[data-testid="collapsedControl"],
-.stDeployButton,
-button[title="View App"],
-button[title="Manage app"],
-button[kind="headerNoSpacing"],
-a[href*="streamlit.io"],
-.viewerBadge_container__1QSob,
-.styles_viewerBadge__CvC9N,
-#GithubIcon,
-.css-1dp5vir {
-    display: none !important;
-    visibility: hidden !important;
-}
-
-/* ── 5. SIDEBAR ────────────────────────────────────────────── */
 section[data-testid="stSidebar"] {
-    width: 230px !important;
-    min-width: 230px !important;
+    width: 230px !important; min-width: 230px !important;
     background: #023f23 !important;
     border-right: 1px solid rgba(46,125,50,0.5) !important;
-    overflow: hidden !important;
-    height: 100vh !important;
-    padding-top: 0 !important;
+    overflow: hidden !important; height: 100vh !important; padding-top: 0 !important;
 }
-
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    padding: 0 4px 4px !important;
+    display: flex !important; flex-direction: column !important;
+    align-items: center !important; padding: 0 4px 4px !important;
 }
-
-[data-testid="stSidebar"] [data-testid="stElementToolbar"] {
-    display: none !important;
-}
-
-/* ── 6. SIDEBAR NAVIGATION RADIO ───────────────────────────── */
-.stRadio > div {
-    gap: 20px !important;
-    width: 100% !important;
-    flex-direction: column !important;
-    margin-bottom: 8px !important;
-}
-
+[data-testid="stSidebar"] [data-testid="stElementToolbar"] { display: none !important; }
+.stRadio > div { gap: 20px !important; width: 100% !important; flex-direction: column !important; margin-bottom: 8px !important; }
 section[data-testid="stSidebar"] .stRadio label {
-    font-size: 16px !important;
-    font-weight: 700 !important;
-    color: #ffffff !important;
-    letter-spacing: 0.8px !important;
-    text-transform: uppercase !important;
-    background: rgba(46,125,50,0.12) !important;
-    border: none !important;
-    border-radius: 8px !important;
-    padding: 6px 8px !important;
-    width: 100% !important;
-    cursor: pointer !important;
-    transition: all 0.2s !important;
-    min-height: 44px !important;
-    display: flex !important;
-    align-items: center !important;
-    margin-top: -15px !important;
-    padding-top: 0 !important;
+    font-size: 16px !important; font-weight: 700 !important; color: #ffffff !important;
+    letter-spacing: 0.8px !important; text-transform: uppercase !important;
+    background: rgba(46,125,50,0.12) !important; border: none !important;
+    border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
+    cursor: pointer !important; transition: all 0.2s !important; min-height: 44px !important;
+    display: flex !important; align-items: center !important;
+    margin-top: -15px !important; padding-top: 0 !important;
 }
-
-/* Hide radio circle */
-section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] > div:first-child {
-    display: none !important;
-}
-
-section[data-testid="stSidebar"] .stRadio label:hover {
-    background: rgba(76,175,80,0.12) !important;
-    color: #ffffff !important;
-}
-
+section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] > div:first-child { display: none !important; }
+section[data-testid="stSidebar"] .stRadio label:hover { background: rgba(76,175,80,0.12) !important; color: #ffffff !important; }
 section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb="radio"]:has(input:checked) {
-    background: rgba(46,125,50,0.22) !important;
-    border-left: 3px solid #4CAF50 !important;
-    color: #ffffff !important;
-    padding-left: 9px !important;
+    background: rgba(46,125,50,0.22) !important; border-left: 3px solid #4CAF50 !important;
+    color: #ffffff !important; padding-left: 9px !important;
 }
-
-section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
-    margin: 0 !important;
-    color: #ffffff !important;
-}
-
-/* ── 7. LOGOUT BUTTON ──────────────────────────────────────── */
+section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p { margin: 0 !important; color: #ffffff !important; }
 [data-testid="stSidebar"] .stButton > button {
-    font-size: 16px !important;
-    font-weight: 700 !important;
-    color: #ffffff !important;
-    letter-spacing: 0.8px !important;
-    text-transform: uppercase !important;
-    background: rgba(46,125,50,0.12) !important;
-    border: none !important;
-    border-radius: 8px !important;
-    padding: 6px 8px !important;
-    width: 100% !important;
-    min-height: 44px !important;
-    transition: all 0.2s !important;
-    margin-top: 8px !important;
-    cursor: pointer !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    font-size: 16px !important; font-weight: 700 !important; color: #ffffff !important;
+    letter-spacing: 0.8px !important; text-transform: uppercase !important;
+    background: rgba(46,125,50,0.12) !important; border: none !important;
+    border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
+    min-height: 44px !important; transition: all 0.2s !important; margin-top: 8px !important;
+    cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important;
 }
-
 [data-testid="stSidebar"] .stButton > button:hover {
-    background: rgba(198,40,40,0.15) !important;
-    border-color: rgba(198,40,40,0.5) !important;
-    color: #ffffff !important;
+    background: rgba(198,40,40,0.15) !important; border-color: rgba(198,40,40,0.5) !important; color: #ffffff !important;
 }
-
-/* ── 8. METRIC CARDS ───────────────────────────────────────── */
 div[data-testid="stMetric"] {
-    background: #023f23 !important;
-    border: 1px solid rgba(76,175,80,0.3) !important;
-    border-radius: 10px !important;
-    padding: 8px 6px !important;
-    text-align: center !important;
+    background: #023f23 !important; border: 1px solid rgba(76,175,80,0.3) !important;
+    border-radius: 10px !important; padding: 8px 6px !important; text-align: center !important;
 }
 div[data-testid="stMetricLabel"] {
-    font-weight: 700 !important;
-    font-size: 11px !important;
-    color: #66bb6a !important;
-    letter-spacing: 1.2px !important;
-    text-transform: uppercase !important;
-    justify-content: center !important;
+    font-weight: 700 !important; font-size: 11px !important; color: #66bb6a !important;
+    letter-spacing: 1.2px !important; text-transform: uppercase !important; justify-content: center !important;
 }
-div[data-testid="stMetricValue"] {
-    font-size: 24px !important;
-    font-weight: 900 !important;
-    color: #fff !important;
-    margin-top: 1px !important;
-}
-
-/* ── 9. DASHBOARD CUSTOM CARDS ─────────────────────────────── */
-.cam-card {
-    background: rgba(13,17,23,0.9);
-    border: 1px solid rgba(46,125,50,0.4);
-    border-radius: 12px;
-    padding: 10px;
-    height: 100%;
-}
+div[data-testid="stMetricValue"] { font-size: 24px !important; font-weight: 900 !important; color: #fff !important; margin-top: 1px !important; }
+.cam-card { background: rgba(13,17,23,0.9); border: 1px solid rgba(46,125,50,0.4); border-radius: 12px; padding: 10px; height: 100%; }
 .section-title {
-    font-size: 12px !important;
-    font-weight: 700 !important;
-    color: #66bb6a !important;
-    letter-spacing: 1.2px !important;
-    text-transform: uppercase !important;
-    margin-bottom: 15px !important;
-    margin-top: 0 !important;
-    border-left: 3px solid #4CAF50;
-    padding-left: 7px;
+    font-size: 12px !important; font-weight: 700 !important; color: #66bb6a !important;
+    letter-spacing: 1.2px !important; text-transform: uppercase !important;
+    margin-bottom: 15px !important; margin-top: 0 !important;
+    border-left: 3px solid #4CAF50; padding-left: 7px;
 }
 .alert-item {
-    padding: 6px 10px;
-    background: rgba(183,28,28,0.12);
-    border: 1px solid rgba(183,28,28,0.3);
-    color: #ef9a9a;
-    border-radius: 8px;
-    margin: 10px 0;
-    font-size: 13px !important;
+    padding: 6px 10px; background: rgba(183,28,28,0.12);
+    border: 1px solid rgba(183,28,28,0.3); color: #ef9a9a;
+    border-radius: 8px; margin: 10px 0; font-size: 13px !important;
 }
 .sched-badge {
-    display: inline-block;
-    background: rgba(21,101,192,0.2);
-    border: 1px solid rgba(21,101,192,0.5);
-    border-radius: 5px;
-    padding: 2px 6px;
-    font-size: 10px !important;
-    color: #90CAF9;
-    font-weight: 700;
-    margin: 0 2px;
+    display: inline-block; background: rgba(21,101,192,0.2);
+    border: 1px solid rgba(21,101,192,0.5); border-radius: 5px;
+    padding: 2px 6px; font-size: 10px !important; color: #90CAF9;
+    font-weight: 700; margin: 0 2px;
 }
-.cam-meta {
-    font-size: 10px !important;
-    color: #66bb6a;
-    margin-top: 15px;
-    line-height: 1.5;
-}
+.cam-meta { font-size: 10px !important; color: #66bb6a; margin-top: 6px; line-height: 1.5; }
 .drive-link {
-    display: inline-block;
-    margin-top: 5px;
-    background: rgba(46,125,50,0.15);
-    border: 1px solid rgba(76,175,80,0.3);
-    border-radius: 7px;
-    padding: 4px 10px;
-    color: #81c784;
-    font-size: 11px !important;
-    text-decoration: none;
+    display: inline-block; margin-top: 5px; background: rgba(46,125,50,0.15);
+    border: 1px solid rgba(76,175,80,0.3); border-radius: 7px; padding: 4px 10px;
+    color: #81c784; font-size: 11px !important; text-decoration: none;
 }
 .cam-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 200px;
-    background: rgba(46,125,50,0.04);
-    border: 2px dashed rgba(46,125,50,0.3);
-    border-radius: 10px;
-    text-align: center;
-    padding: 20px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 200px; background: rgba(46,125,50,0.04);
+    border: 2px dashed rgba(46,125,50,0.3); border-radius: 10px;
+    text-align: center; padding: 20px;
 }
-
-/* ── 10. PLOTLY CHART HEIGHT ───────────────────────────────── */
-.js-plotly-plot, .plotly, .plot-container {
-    max-height: 210px !important;
+.plant-thumb-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 8px;
 }
-[data-testid="stPlotlyChart"] {
-    height: 210px !important;
-    overflow: hidden !important;
+.plant-thumb-wrap { position: relative; }
+.plant-thumb-wrap img { width: 100%; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(76,175,80,0.3); display: block; }
+.plant-thumb-wrap .pid-label {
+    position: absolute; bottom: 2px; left: 3px; font-size: 9px;
+    color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.9);
 }
-
-/* ── 11. DATAFRAME ─────────────────────────────────────────── */
-[data-testid="stDataFrame"] {
-    max-height: 300px !important;
-    overflow-y: auto !important;
-    font-size: 13px !important;
+.plant-thumb-empty {
+    width: 100%; height: 60px; border-radius: 6px;
+    border: 1px dashed rgba(76,175,80,0.3); display: flex;
+    align-items: center; justify-content: center; font-size: 9px; color: #2e7d32;
 }
-
-/* ── 12. STREAMLIT ALERTS ──────────────────────────────────── */
-[data-testid="stAlert"] {
-    padding: 8px 12px !important;
-    font-size: 13px !important;
-    border-radius: 8px !important;
-    margin: 4px 0 !important;
-}
-
-/* ── 13. SELECTBOX & INPUTS ────────────────────────────────── */
-[data-testid="stSelectbox"] {
-    margin-bottom: 4px !important;
-}
-[data-baseweb="select"] {
-    min-height: 42px !important;
-}
-.stSelectbox label {
-    font-size: 12px !important;
-    color: #66bb6a !important;
-    margin-bottom: 2px !important;
-}
-.stTextInput label {
-    color: #c8e6c9 !important;
-    font-weight: 600 !important;
-    font-size: 13px !important;
-}
-
-/* ── 14. LANDING PAGE BUTTON ───────────────────────────────── */
+.js-plotly-plot, .plotly, .plot-container { max-height: 210px !important; }
+[data-testid="stPlotlyChart"] { height: 210px !important; overflow: hidden !important; }
+[data-testid="stDataFrame"] { max-height: 300px !important; overflow-y: auto !important; font-size: 13px !important; }
+[data-testid="stAlert"] { padding: 8px 12px !important; font-size: 13px !important; border-radius: 8px !important; margin: 4px 0 !important; }
+[data-testid="stSelectbox"] { margin-bottom: 4px !important; }
+[data-baseweb="select"] { min-height: 42px !important; }
+.stSelectbox label { font-size: 12px !important; color: #66bb6a !important; margin-bottom: 2px !important; }
+.stTextInput label { color: #c8e6c9 !important; font-weight: 600 !important; font-size: 13px !important; }
 .landing-btn-wrapper button {
     background: linear-gradient(135deg, #2e7d32, #66bb6a) !important;
-    border: 2px solid rgba(255,255,255,0.3) !important;
-    border-radius: 50px !important;
-    color: white !important;
-    font-size: 24px !important;
-    font-weight: 700 !important;
-    padding: 14px 48px !important;
-    cursor: pointer !important;
-    letter-spacing: 2px !important;
-    text-transform: uppercase !important;
-    min-height: 64px !important;
+    border: 2px solid rgba(255,255,255,0.3) !important; border-radius: 50px !important;
+    color: white !important; font-size: 24px !important; font-weight: 700 !important;
+    padding: 14px 48px !important; cursor: pointer !important; letter-spacing: 2px !important;
+    text-transform: uppercase !important; min-height: 64px !important;
     transition: transform 0.2s, box-shadow 0.2s !important;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
-    width: auto !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important; width: auto !important;
 }
-.landing-btn-wrapper button:hover {
-    transform: scale(1.05) !important;
-    box-shadow: 0 12px 32px rgba(76,175,80,0.7) !important;
-}
-/* Hide sidebar on landing page */
-.landing-page section[data-testid="stSidebar"] {
-    display: none !important;
-}
-
-/* ── 15. LOGIN FORM ────────────────────────────────────────── */
+.landing-btn-wrapper button:hover { transform: scale(1.05) !important; box-shadow: 0 12px 32px rgba(76,175,80,0.7) !important; }
+.landing-page section[data-testid="stSidebar"] { display: none !important; }
 [data-testid="stForm"] {
-    background: linear-gradient(160deg,
-        rgba(27,94,32,0.65) 0%, rgba(46,125,50,0.55) 100%) !important;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 18px;
-    border: 1px solid rgba(165,214,167,0.35);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
-    padding: 26px 36px 34px !important;
+    background: linear-gradient(160deg, rgba(27,94,32,0.65) 0%, rgba(46,125,50,0.55) 100%) !important;
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-radius: 18px; border: 1px solid rgba(165,214,167,0.35);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35); padding: 26px 36px 34px !important;
 }
 [data-testid="stForm"] input {
-    background: rgba(255,255,255,0.1) !important;
-    color: #fff !important;
-    border: 1px solid rgba(165,214,167,0.45) !important;
-    border-radius: 10px !important;
-    font-size: 16px !important;
-    min-height: 48px !important;
+    background: rgba(255,255,255,0.1) !important; color: #fff !important;
+    border: 1px solid rgba(165,214,167,0.45) !important; border-radius: 10px !important;
+    font-size: 16px !important; min-height: 48px !important;
 }
-[data-testid="stForm"] input::placeholder {
-    color: rgba(200,230,200,0.6) !important;
-}
+[data-testid="stForm"] input::placeholder { color: rgba(200,230,200,0.6) !important; }
 [data-testid="stForm"] button[kind="primaryFormSubmit"] {
     background: linear-gradient(90deg, #2e7d32, #66bb6a) !important;
-    border: none !important;
-    color: #fff !important;
-    font-weight: 700 !important;
-    border-radius: 10px !important;
-    letter-spacing: 1.5px;
-    font-size: 16px !important;
-    padding: 12px !important;
-    min-height: 52px !important;
-    margin-top: 4px !important;
+    border: none !important; color: #fff !important; font-weight: 700 !important;
+    border-radius: 10px !important; letter-spacing: 1.5px; font-size: 16px !important;
+    padding: 12px !important; min-height: 52px !important; margin-top: 4px !important;
 }
-
-/* ── 16. PULSE ANIMATION ───────────────────────────────────── */
-@keyframes pulse {
-    0%,100% { box-shadow: 0 0 5px #4CAF50; }
-    50%      { box-shadow: 0 0 14px #4CAF50; opacity: 0.7; }
-}
-
-/* ── 17. COLUMNS FILL HEIGHT ───────────────────────────────── */
-[data-testid="column"] {
-    height: 100%;
-    padding: 0 4px !important;
-}
-
-/* ── 18. MAIN DASHBOARD FLEX LAYOUT ────────────────────────── */
-.main .block-container {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-.main .block-container > [data-testid="stVerticalBlock"] {
-    flex: 1;
-    overflow: hidden;
-}
+@keyframes pulse { 0%,100% { box-shadow: 0 0 5px #4CAF50; } 50% { box-shadow: 0 0 14px #4CAF50; opacity: 0.7; } }
+[data-testid="column"] { height: 100%; padding: 0 4px !important; }
+.main .block-container { display: flex; flex-direction: column; overflow: hidden; }
+.main .block-container > [data-testid="stVerticalBlock"] { flex: 1; overflow: hidden; }
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
+
 
 # ============================================================
 # HELPERS
@@ -491,20 +254,28 @@ def file_to_b64(path: str) -> str:
     except Exception:
         return ""
 
-def gdrive_thumbnail(url: str, size: str = "w1200") -> str:
+
+def gdrive_direct_url(url: str) -> str:
+    """
+    Convert any Google Drive URL to a direct uc?export=view URL.
+    This format renders in <img> tags and st.image without requiring
+    the viewer to be logged in to Google, as long as the file is
+    shared as 'Anyone with the link can view'.
+    """
     if not url:
         return ""
     try:
+        fid = None
         if "id=" in url:
-            fid = url.split("id=")[1].split("&")[0]
-            return f"https://drive.google.com/thumbnail?id={fid}&sz={size}"
-        # Handle direct folder or file links
-        if "/file/d/" in url:
-            fid = url.split("/file/d/")[1].split("/")[0]
-            return f"https://drive.google.com/thumbnail?id={fid}&sz={size}"
+            fid = url.split("id=")[1].split("&")[0].strip()
+        elif "/file/d/" in url:
+            fid = url.split("/file/d/")[1].split("/")[0].strip()
+        if fid:
+            return f"https://drive.google.com/uc?export=view&id={fid}"
     except Exception:
         pass
     return url
+
 
 def set_background(path: str):
     b64 = file_to_b64(path)
@@ -514,23 +285,18 @@ def set_background(path: str):
     st.markdown(f"""<style>
     .stApp {{
         background-image: url("data:{mime};base64,{b64}");
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
+        background-size: cover; background-position: center;
+        background-repeat: no-repeat; background-attachment: fixed;
     }}
     .stApp::before {{
-        content: "";
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.52);
-        z-index: 0;
-        pointer-events: none;
+        content: ""; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.52); z-index: 0; pointer-events: none;
     }}
     </style>""", unsafe_allow_html=True)
 
+
 # ============================================================
-# SESSION STATE — always start at landing page
+# SESSION STATE
 # ============================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -544,6 +310,7 @@ USERS = {
     "user@agribot.ai":  {"password": "user123",  "role": "user"},
 }
 
+
 # ============================================================
 # PAGE: LANDING
 # ============================================================
@@ -551,8 +318,7 @@ def show_landing():
     if ACTUAL_LANDING_BG:
         set_background(ACTUAL_LANDING_BG)
     else:
-        st.markdown("""<style>.stApp { background: #0a0d12 !important; }</style>""",
-                    unsafe_allow_html=True)
+        st.markdown("""<style>.stApp { background: #0a0d12 !important; }</style>""", unsafe_allow_html=True)
 
     st.markdown("""
     <style>
@@ -564,17 +330,16 @@ def show_landing():
     col1, col2, col3 = st.columns([3, 2, 9])
     with col2:
         st.markdown("<div style='margin-top: 30vh;'></div>", unsafe_allow_html=True)
-        st.markdown("<div style='margin-left: -45vh;'></div>", unsafe_allow_html=True)
         st.markdown('<div class="landing-btn-wrapper">', unsafe_allow_html=True)
         if st.button("Let's Start", use_container_width=True, key="landing_btn"):
             st.session_state.page = "login"
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-
     st.stop()
 
+
 # ============================================================
-# PAGE: LOGIN (FIXED – direct session assignment, no function call)
+# PAGE: LOGIN
 # ============================================================
 def show_login():
     set_background(ACTUAL_BG)
@@ -582,10 +347,8 @@ def show_login():
     st.markdown("""<style>
     section[data-testid="stSidebar"] { display: none !important; }
     html, body, [data-testid="stAppViewContainer"] {
-        overflow: hidden !important;
-        height: 100vh !important;
-        position: fixed;
-        width: 100vw;
+        overflow: hidden !important; height: 100vh !important;
+        position: fixed; width: 100vw;
     }
     header {visibility: hidden;}
     .main .block-container { padding-top: 2rem !important; padding-bottom: 0rem !important; }
@@ -620,7 +383,6 @@ def show_login():
             password = st.text_input("Password", type="password", placeholder="••••••••")
             if st.form_submit_button("LOGIN", use_container_width=True):
                 if email in USERS and USERS[email]["password"] == password:
-                    # Directly set session state – no function call needed
                     st.session_state.logged_in = True
                     st.session_state.role      = USERS[email]["role"]
                     st.session_state.page      = "dashboard"
@@ -628,18 +390,15 @@ def show_login():
                 else:
                     st.error("Invalid email or password")
 
-        st.markdown(
-            '<div style="text-align:center;margin-top:10px;">'
-            '<span style="font-size:11px;color:#388e3c;">← </span>'
-            '</div>', unsafe_allow_html=True)
+        st.markdown('<div style="text-align:center;margin-top:10px;"><span style="font-size:11px;color:#388e3c;">← </span></div>', unsafe_allow_html=True)
         if st.button("← Back to Landing", use_container_width=True, key="back_btn"):
             st.session_state.page = "landing"
             st.rerun()
-
     st.stop()
 
+
 # ============================================================
-# MAIN FLOW: route by st.session_state.page
+# ROUTING
 # ============================================================
 if st.session_state.page == "landing":
     show_landing()
@@ -651,8 +410,9 @@ if not st.session_state.logged_in and st.session_state.page == "dashboard":
     st.session_state.page = "login"
     st.rerun()
 
+
 # ============================================================
-# DATA FUNCTIONS (unchanged, keep as before)
+# DATA FUNCTIONS
 # ============================================================
 @st.cache_resource
 def load_assets():
@@ -662,6 +422,7 @@ def load_assets():
         return model, scaler
     except Exception:
         return None, None
+
 
 @st.cache_resource
 def get_sheet():
@@ -682,6 +443,7 @@ def get_sheet():
         st.error(f"Database Connection Error: {e}")
         return None
 
+
 @st.cache_data(ttl=30)
 def get_latest_readings():
     if sheet is None:
@@ -694,6 +456,7 @@ def get_latest_readings():
         return df.sort_values('timestamp').groupby('plant_id').last().reset_index()
     except Exception:
         return pd.DataFrame()
+
 
 @st.cache_data(ttl=60)
 def get_historical_data(plant_id=None, hours=24):
@@ -711,8 +474,14 @@ def get_historical_data(plant_id=None, hours=24):
     except Exception:
         return pd.DataFrame()
 
+
 @st.cache_data(ttl=30)
-def get_latest_image() -> dict:
+def get_plant_images() -> dict:
+    """
+    Returns {plant_id: {url, timestamp}} for all plants that have
+    an uploaded image URL. Uses uc?export=view so images render
+    in the dashboard without requiring Google login.
+    """
     if sheet is None:
         return {}
     try:
@@ -720,21 +489,27 @@ def get_latest_image() -> dict:
         if df.empty or 'image_url' not in df.columns:
             return {}
         df['timestamp'] = pd.to_datetime(df['timestamp'])
+        # Keep only rows with a real Drive file URL (must contain id=)
+        df = df[df['image_url'].astype(str).str.contains("id=", na=False)]
         df = df.sort_values('timestamp', ascending=False)
+        result = {}
         for _, row in df.iterrows():
-            raw = str(row.get('image_url', '')).strip()
-            if raw.startswith("http"):
-                return {
-                    "url":       gdrive_thumbnail(raw, "w1200"),
-                    "plant_id":  int(row.get('plant_id', 0)),
+            pid = int(row.get('plant_id', 0))
+            if pid not in result:
+                raw = str(row['image_url']).strip()
+                result[pid] = {
+                    "url":       gdrive_direct_url(raw),
                     "timestamp": pd.to_datetime(row['timestamp']).strftime("%b %d, %Y · %I:%M %p"),
                 }
-        return {}
+            if len(result) == 10:
+                break
+        return result
     except Exception:
         return {}
 
+
 # ============================================================
-# SIDEBAR (dashboard only)
+# SIDEBAR
 # ============================================================
 sheet    = get_sheet()
 logo_b64 = file_to_b64(ACTUAL_LOGO)
@@ -764,7 +539,7 @@ with st.sidebar:
         unsafe_allow_html=True)
 
     nav_opts = (
-        ["Live Dashboard","Analysis","System Logs","Users"]
+        ["Live Dashboard", "Analysis", "System Logs", "Users"]
         if st.session_state.role == "admin"
         else ["Live Dashboard", "Analysis"]
     )
@@ -784,6 +559,7 @@ with st.sidebar:
         st.session_state.page      = "landing"
         st.rerun()
 
+
 # ============================================================
 # SHARED DATA + THRESHOLDS
 # ============================================================
@@ -794,6 +570,9 @@ PH_LOW,   PH_HIGH   = 5.5, 6.5
 SOIL_DRY, SOIL_WET  = 30,  80
 TEMP_LOW, TEMP_HIGH = 15,  30
 HUM_LOW,  HUM_HIGH  = 50,  85
+
+# Auto-refresh every 30 seconds
+st_autorefresh(interval=30000, key="autorefresh")
 
 # ============================================================
 # PAGE: LIVE DASHBOARD
@@ -823,44 +602,77 @@ if page == "DASHBOARD":
     m3.metric("PH",       f"{avg_ph:.2f}")
     m4.metric("SOIL",     f"{avg_soil:.0f} %")
 
-    img_data = get_latest_image()
+    # Fetch all plant images
+    plant_images = get_plant_images()
 
     cam_col, right_col = st.columns([3, 2], gap="small")
 
+    # ── Camera feed column ──────────────────────────────────
     with cam_col:
         st.markdown('<div style="margin-top: 10px;">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">📷 Plant Health Feed</div>',
                     unsafe_allow_html=True)
-        if img_data.get("url"):
+
+        if plant_images:
+            # Most recently captured plant shown large at the top
+            latest_pid = max(plant_images, key=lambda p: plant_images[p]['timestamp'])
+            latest_img = plant_images[latest_pid]
+
             st.markdown(
-                f'<img src="{img_data["url"]}" '
-                f'style="width:100%;max-height:230px;object-fit:cover;'
-                f'border-radius:8px;"/>',
+                f'<img src="{latest_img["url"]}" '
+                f'style="width:100%;max-height:200px;object-fit:cover;'
+                f'border-radius:8px;margin-bottom:6px;" '
+                f'onerror="this.style.display=\'none\'"/>',
                 unsafe_allow_html=True)
-            pid_txt = f"🥬 Plant {img_data['plant_id']}" if img_data.get("plant_id") else ""
-            ts_txt  = f"🕒 {img_data['timestamp']}"       if img_data.get("timestamp") else ""
+
             st.markdown(
-                f'<div class="cam-meta">{pid_txt}&nbsp;&nbsp;{ts_txt}<br>'
-                f'Captured at '
+                f'<div class="cam-meta">'
+                f'🥬 Plant {latest_pid} &nbsp;&nbsp; 🕒 {latest_img["timestamp"]}<br>'
+                f'Captures at '
                 f'<span class="sched-badge">7:00 AM</span>'
                 f'<span class="sched-badge">12:00 NN</span>'
-                f'<span class="sched-badge">12:30 PM</span></div>'
-                f'<a href="{img_data["url"]}" target="_blank" class="drive-link">'
-                f'☁️ View in Drive ↗</a>',
+                f'<span class="sched-badge">5:00 PM</span>'
+                f'</div>',
                 unsafe_allow_html=True)
+
+            # Thumbnail grid — all 10 plants
+            thumb_html = '<div class="plant-thumb-grid">'
+            for pid in range(1, 11):
+                if pid in plant_images:
+                    img_url = plant_images[pid]["url"]
+                    thumb_html += (
+                        f'<div class="plant-thumb-wrap">'
+                        f'<img src="{img_url}" '
+                        f'onerror="this.parentElement.innerHTML=\'<div class=plant-thumb-empty>P{pid}</div>\'">'
+                        f'<span class="pid-label">P{pid}</span>'
+                        f'</div>'
+                    )
+                else:
+                    thumb_html += f'<div class="plant-thumb-empty">P{pid}</div>'
+            thumb_html += '</div>'
+            st.markdown(thumb_html, unsafe_allow_html=True)
+
+            st.markdown(
+                f'<a href="{DRIVE_FOLDER_URL}" target="_blank" class="drive-link">'
+                f'☁️ View all in Drive ↗</a>',
+                unsafe_allow_html=True)
+
         else:
             st.markdown(
                 '<div class="cam-placeholder">'
                 '<div style="font-size:36px;margin-bottom:8px;">📷</div>'
                 '<div style="font-size:12px;font-weight:700;color:#4CAF50;">No image yet</div>'
-                '<div style="font-size:10px;color:#2e7d32;margin-top:100px;">'
+                '<div style="font-size:10px;color:#2e7d32;margin-top:10px;">'
                 'Captures at '
                 '<span class="sched-badge">7:00 AM</span>'
                 '<span class="sched-badge">12:00 NN</span>'
-                '<span class="sched-badge">12:30 PM</span></div>'
-                '</div>', unsafe_allow_html=True)
+                '<span class="sched-badge">5:00 PM</span>'
+                '</div></div>',
+                unsafe_allow_html=True)
+
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── Right column ────────────────────────────────────────
     with right_col:
         if not latest.empty:
             last_ts = pd.to_datetime(latest['timestamp']).max()
@@ -911,6 +723,7 @@ if page == "DASHBOARD":
         else:
             st.success("✅ All parameters in range.")
 
+
 # ============================================================
 # PAGE: ANALYSIS
 # ============================================================
@@ -936,10 +749,10 @@ elif page == "ANALYSIS":
         hist_df = get_historical_data(plant_id=plant_sel, hours=hours)
         if not hist_df.empty:
             col_map = {
-                "Temperature (°C)": ("temp_c",        "°C"),
-                "Humidity (%)":     ("humidity",       "%"),
-                "pH":               ("ph",             "pH"),
-                "Soil Moisture (%)":("soil_moisture",  "%"),
+                "Temperature (°C)": ("temp_c",       "°C"),
+                "Humidity (%)":     ("humidity",      "%"),
+                "pH":               ("ph",            "pH"),
+                "Soil Moisture (%)":("soil_moisture", "%"),
             }
             y_col, y_label = col_map[sensor_choice]
             fig = px.line(hist_df, x='timestamp', y=y_col,
@@ -976,6 +789,7 @@ elif page == "ANALYSIS":
     else:
         st.warning("No data available yet.")
 
+
 # ============================================================
 # PAGE: SYSTEM LOGS
 # ============================================================
@@ -990,14 +804,10 @@ elif page == "LOGS":
     logs = get_historical_data(plant_id=None, hours=24)
     if not logs.empty:
         def classify(r):
-            if r['temp_c'] < TEMP_LOW or r['temp_c'] > TEMP_HIGH:
-                return "🌡️ Temp"
-            if r['humidity'] < HUM_LOW or r['humidity'] > HUM_HIGH:
-                return "💧 Humidity"
-            if r['ph'] < PH_LOW or r['ph'] > PH_HIGH:
-                return "🧪 pH"
-            if r['soil_moisture'] < SOIL_DRY or r['soil_moisture'] > SOIL_WET:
-                return "🌱 Soil"
+            if r['temp_c'] < TEMP_LOW or r['temp_c'] > TEMP_HIGH:   return "🌡️ Temp"
+            if r['humidity'] < HUM_LOW or r['humidity'] > HUM_HIGH: return "💧 Humidity"
+            if r['ph'] < PH_LOW or r['ph'] > PH_HIGH:               return "🧪 pH"
+            if r['soil_moisture'] < SOIL_DRY or r['soil_moisture'] > SOIL_WET: return "🌱 Soil"
             return "Normal"
 
         logs['event'] = logs.apply(classify, axis=1)
@@ -1020,6 +830,7 @@ elif page == "LOGS":
     else:
         st.info("No logs available.")
 
+
 # ============================================================
 # PAGE: USER MANAGEMENT
 # ============================================================
@@ -1036,3 +847,4 @@ elif page == "USERS":
         "Role":     ["Administrator",    "Standard User"]
     }))
     st.info("Future feature: add / remove users via database.")
+
