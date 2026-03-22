@@ -929,41 +929,6 @@ elif page == "ANALYSIS":
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # pH summary: show current avg pH with badge + per-plant breakdown
-            if sensor_choice == "pH":
-                st.markdown('<div class="section-title">🧪 Current pH — All Plants</div>',
-                            unsafe_allow_html=True)
-                ph_rows = []
-                for _, row in latest.iterrows():
-                    pv   = float(row['ph'])
-                    lbl, cls = ph_label(pv)
-                    ph_rows.append({
-                        "Plant":  f"P{int(row['plant_id'])}",
-                        "pH":     round(pv, 2),
-                        "Status": lbl,
-                    })
-                ph_df = pd.DataFrame(ph_rows)
-
-                color_map = {"Acidic": "#ef9a9a", "Neutral": "#81c784", "Alkaline": "#90CAF9"}
-                bar_ph = px.bar(
-                    ph_df, x='Plant', y='pH',
-                    color='Status', color_discrete_map=color_map,
-                    text='pH',
-                    labels={'Plant': 'Plant', 'pH': 'pH Value'}
-                )
-                bar_ph.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-                bar_ph.add_hline(y=6.5, line_dash="dot", line_color="#90CAF9",
-                                 annotation_text="Neutral", annotation_font_color="#90CAF9")
-                bar_ph.add_hline(y=7.5, line_dash="dot", line_color="#ef9a9a",
-                                 annotation_text="Alkaline", annotation_font_color="#ef9a9a")
-                bar_ph.update_layout(
-                    height=200, margin=dict(t=10, b=20, l=30, r=10),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(13,17,23,0.85)',
-                    font_color='#a5d6a7', legend_font_color='#a5d6a7',
-                )
-                st.plotly_chart(bar_ph, use_container_width=True)
-
         else:
             st.warning("No data in the selected time range.")
 
@@ -1030,3 +995,5 @@ elif page == "USERS":
         "Role":     ["Administrator",    "Standard User"]
     }))
     st.info("Future feature: add / remove users via database.")
+
+
