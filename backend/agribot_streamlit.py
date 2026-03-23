@@ -16,6 +16,17 @@ import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 
 # ============================================================
+# GEMINI AI IMPORTS  (NEW)
+# ============================================================
+try:
+    import google.generativeai as genai
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseDownload
+    GEMINI_IMPORTS_OK = True
+except ImportError:
+    GEMINI_IMPORTS_OK = False
+
+# ============================================================
 # PATHS
 # ============================================================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -214,7 +225,6 @@ div[data-testid="stMetricValue"] {
     border: 2px dashed rgba(46,125,50,0.3); border-radius: 10px;
     text-align: center; padding: 20px;
 }
-/* pH indicator badge */
 .ph-badge {
     display: inline-block; border-radius: 6px; padding: 2px 10px;
     font-size: 10px !important; font-weight: 700; letter-spacing: 1px;
@@ -223,7 +233,6 @@ div[data-testid="stMetricValue"] {
 .ph-acidic   { background: rgba(239,83,80,0.18);  border: 1px solid rgba(239,83,80,0.5);  color: #ef9a9a; }
 .ph-neutral  { background: rgba(76,175,80,0.18);  border: 1px solid rgba(76,175,80,0.5);  color: #81c784; }
 .ph-alkaline { background: rgba(66,165,245,0.18); border: 1px solid rgba(66,165,245,0.5); color: #90CAF9; }
-/* pH metric card override to show badge inline */
 .ph-metric-wrap {
     background: #023f23; border: 1px solid rgba(76,175,80,0.3);
     border-radius: 10px; padding: 8px 6px; text-align: center;
@@ -293,6 +302,14 @@ div[data-testid="stMetricValue"] {
     border-radius: 8px !important; max-height: 260px !important;
     object-fit: cover !important; width: 100% !important;
 }
+/* Gemini AI button styling */
+.stButton > button[kind="secondary"] {
+    background: linear-gradient(135deg, rgba(46,125,50,0.3), rgba(76,175,80,0.2)) !important;
+    border: 1px solid rgba(76,175,80,0.5) !important;
+    color: #81c784 !important; font-size: 11px !important;
+    border-radius: 8px !important; padding: 4px 10px !important;
+    font-weight: 700 !important; letter-spacing: 0.5px !important;
+}
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
@@ -337,10 +354,8 @@ def gdrive_direct_url(url: str) -> str:
 
 def fetch_drive_image(url: str):
     """
-    Download image bytes from Google Drive server-side.
-    Returns a PIL Image or None. Using st.image() with PIL bypasses
-    the browser CORS block that prevents <img src="drive_url"> from
-    rendering inside Streamlit's iframe sandbox.
+    Download image bytes from Google Drive server-side (public share fallback).
+    Returns a PIL Image or None.
     """
     if not url:
         return None
@@ -410,6 +425,173 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
 
 
 # ============================================================
+# GEMINI AI — Private Drive Download + Plant Analysis  (NEW)
+# ============================================================
+def _get_drive_service_private():
+    """
+    Builds a Drive service using your existing service account credentials.
+    Works on Streamlit Cloud via st.secrets OR local via credentials.json.
+    Images do NOT need to be publicly shared — service account has access.
+    """
+    if not GEMINI_IMPORTS_OK:
+        return None
+    scope = ["https://www.googleapis.com/auth/drive.readonly"]
+    try:
+        if "gcp_service_account" in st.secrets:
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(
+                dict(st.secrets["gcp_service_account"]), scope)
+        elif os.path.exists(CREDENTIALS_FILE):
+            creds = ServiceAccountCredentials.from_json_keyfile_name(
+                CREDENTIALS_FILE, scope)
+        else:
+            return None
+        return build("drive", "v3", credentials=creds)
+    except Exception as e:
+        print(f"[Drive Private] Service build error: {e}")
+        return None
+
+
+def _get_file_id_from_url(url: str) -> str:
+    """Extract Google Drive file ID from any Drive URL format."""
+    if not url:
+        return ""
+    if "id=" in url:
+        return url.split("id=")[1].split("&")[0].strip()
+    if "/file/d/" in url:
+        return url.split("/file/d/")[1].split("/")[0].strip()
+    return ""
+
+
+def fetch_drive_image_private(file_id: str):
+    """
+    Downloads image PRIVATELY using service account — no public share needed.
+    Falls back to public fetch if private fails.
+    Returns PIL Image or None.
+    """
+    if not file_id or not GEMINI_IMPORTS_OK:
+        return None
+    try:
+        svc = _get_drive_service_private()
+        if not svc:
+            return None
+        request = svc.files().get_media(fileId=file_id)
+        buf = io.BytesIO()
+        dl  = MediaIoBaseDownload(buf, request)
+        done = False
+        while not done:
+            _, done = dl.next_chunk()
+        buf.seek(0)
+        return PILImage.open(buf)
+    except Exception as e:
+        print(f"[Drive Private] Download error: {e}")
+        return None
+
+
+@st.cache_data(ttl=300)  # Cache 5 min — won't re-run on every 30s autorefresh
+def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
+    """
+    Downloads the plant image privately from Drive and sends it to
+    Gemini 1.5 Flash for lettuce health analysis.
+    Returns a dict: status, issues, action, confidence.
+    """
+    if not file_id:
+        return {"error": "No file ID provided"}
+    if not GEMINI_IMPORTS_OK:
+        return {"error": "Run: pip install google-generativeai google-api-python-client"}
+
+    try:
+        # Step 1 — Download image privately via service account
+        svc = _get_drive_service_private()
+        if not svc:
+            return {"error": "Drive service unavailable — check credentials"}
+        request = svc.files().get_media(fileId=file_id)
+        buf = io.BytesIO()
+        dl  = MediaIoBaseDownload(buf, request)
+        done = False
+        while not done:
+            _, done = dl.next_chunk()
+        buf.seek(0)
+        pil_img = PILImage.open(buf)
+
+        # Step 2 — Get Gemini API key from Streamlit secrets
+        gemini_key = st.secrets.get("GEMINI_API_KEY", "")
+        if not gemini_key:
+            return {"error": "GEMINI_API_KEY missing — add it to Streamlit Cloud Secrets"}
+
+        # Step 3 — Send to Gemini Vision
+        genai.configure(api_key=gemini_key)
+        model    = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content([
+            pil_img,
+            f"""You are an expert agronomist specializing in hydroponic lettuce cultivation.
+Carefully analyze this image of Plant #{plant_id} captured on {timestamp}.
+
+Reply ONLY in this exact format — no extra text, no markdown:
+STATUS: [Healthy / Warning / Critical]
+ISSUES: [comma-separated list of visible problems, or "None detected"]
+ACTION: [one specific recommended action, max 20 words]
+CONFIDENCE: [High / Medium / Low]"""
+        ])
+
+        # Step 4 — Parse structured response
+        raw    = response.text.strip()
+        result = {"raw": raw, "plant_id": plant_id, "timestamp": timestamp}
+        for line in raw.splitlines():
+            for key in ["STATUS", "ISSUES", "ACTION", "CONFIDENCE"]:
+                if line.upper().startswith(f"{key}:"):
+                    result[key.lower()] = line.split(":", 1)[1].strip()
+        return result
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def render_gemini_card(analysis: dict):
+    """Renders Gemini AI result as a styled card matching the dark green dashboard theme."""
+    if not analysis:
+        return
+    if "error" in analysis:
+        st.markdown(
+            f'<div class="alert-item">🤖 AI unavailable: {analysis["error"]}</div>',
+            unsafe_allow_html=True)
+        return
+
+    status     = analysis.get("status",     "Unknown")
+    issues     = analysis.get("issues",     "—")
+    action     = analysis.get("action",     "—")
+    confidence = analysis.get("confidence", "—")
+
+    color_map = {
+        "Healthy":  ("#2e7d32", "#81c784", "✅"),
+        "Warning":  ("#e65100", "#ffb74d", "⚠️"),
+        "Critical": ("#b71c1c", "#ef9a9a", "🔴"),
+    }
+    bg, border, icon = color_map.get(status, ("#1a237e", "#90CAF9", "ℹ️"))
+    r_val = int(bg[1:3], 16)
+    g_val = int(bg[3:5], 16)
+    b_val = int(bg[5:7], 16)
+
+    st.markdown(f"""
+    <div style='background:rgba({r_val},{g_val},{b_val},0.18);
+         border:1px solid {border}; border-radius:10px;
+         padding:10px 14px; margin-top:8px;'>
+        <div style='font-size:11px;font-weight:900;color:{border};
+             letter-spacing:1px;margin-bottom:6px;'>
+            {icon} GEMINI AI — Plant {analysis.get("plant_id","")}
+            <span style='font-size:9px;color:#666;margin-left:6px;font-weight:400;'>
+            {analysis.get("timestamp","")}
+            </span>
+        </div>
+        <div style='font-size:11px;color:#e8f5e9;line-height:2;'>
+            <b style='color:#a5d6a7;'>Status :</b> {status}<br>
+            <b style='color:#a5d6a7;'>Issues :</b> {issues}<br>
+            <b style='color:#a5d6a7;'>Action :</b> {action}<br>
+            <b style='color:#a5d6a7;'>Confidence:</b> {confidence}
+        </div>
+    </div>""", unsafe_allow_html=True)
+
+
+# ============================================================
 # SESSION STATE
 # ============================================================
 if "logged_in" not in st.session_state:
@@ -418,6 +600,10 @@ if "logged_in" not in st.session_state:
 
 if "page" not in st.session_state:
     st.session_state.page = "landing"
+
+# Store last AI analysis result in session so it persists across reruns
+if "gemini_result" not in st.session_state:
+    st.session_state.gemini_result = None
 
 USERS = {
     "admin@agribot.ai": {"password": "admin123", "role": "admin"},
@@ -687,12 +873,11 @@ if page == "DASHBOARD":
     avg_ph   = float(latest['ph'].mean())
     avg_soil = float(latest['soil_moisture'].mean())
 
-    # ── Metric cards — pH card has inline acidic/neutral/alkaline badge ──
+    # ── Metric cards ──────────────────────────────────────────
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("TEMP",     f"{avg_temp:.1f} °C")
     m2.metric("HUMIDITY", f"{avg_hum:.0f} %")
 
-    # pH card with indicator badge
     ph_lbl, ph_cls = ph_label(avg_ph)
     with m3:
         st.markdown(
@@ -710,16 +895,46 @@ if page == "DASHBOARD":
     img_data = get_latest_plant_image()
     cam_col, right_col = st.columns([3, 2], gap="small")
 
-    # ── Plant Health Feed ────────────────────────────────────
+    # ── Plant Health Feed  (UPDATED — private Drive + Gemini AI) ─
     with cam_col:
         st.markdown('<div style="margin-top: 10px;">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">📷 Plant Health Feed</div>',
                     unsafe_allow_html=True)
 
         if img_data.get("url"):
-            pil_img = fetch_drive_image(img_data["url"])
+            file_id = _get_file_id_from_url(img_data["url"])
+
+            # Try private download first, fall back to public
+            pil_img = fetch_drive_image_private(file_id) if file_id else None
+            if pil_img is None:
+                pil_img = fetch_drive_image(img_data["url"])
+
             if pil_img:
                 st.image(pil_img, use_container_width=True)
+
+                # ── Gemini AI Analysis Button ──────────────────
+                if GEMINI_IMPORTS_OK:
+                    if st.button(
+                        "🤖 Analyze with Gemini AI",
+                        key=f"gemini_{file_id[:8] if file_id else 'x'}",
+                        use_container_width=True
+                    ):
+                        with st.spinner("Analyzing lettuce health with Gemini AI..."):
+                            st.session_state.gemini_result = analyze_plant_with_gemini(
+                                file_id,
+                                img_data.get("plant_id", "?"),
+                                img_data.get("timestamp", "")
+                            )
+
+                    # Show last AI result (persists across autorefresh)
+                    if st.session_state.gemini_result:
+                        render_gemini_card(st.session_state.gemini_result)
+                else:
+                    st.markdown(
+                        '<div style="font-size:10px;color:#666;margin-top:4px;">'
+                        '⚠️ Gemini AI not installed — add to requirements.txt</div>',
+                        unsafe_allow_html=True)
+
             else:
                 st.markdown(
                     '<div class="cam-placeholder">'
@@ -736,7 +951,7 @@ if page == "DASHBOARD":
                 f'Captured at '
                 f'<span class="sched-badge">7:00 AM</span>'
                 f'<span class="sched-badge">12:00 NN</span>'
-                f'<span class="sched-badge">5:00 PM</span></div>'
+                f'<span class="sched-badge">1:45 AM</span></div>'
                 f'<a href="{DRIVE_FOLDER_URL}" target="_blank" class="drive-link">'
                 f'☁️ View all in Drive ↗</a>',
                 unsafe_allow_html=True)
@@ -749,7 +964,7 @@ if page == "DASHBOARD":
                 'Captures at '
                 '<span class="sched-badge">7:00 AM</span>'
                 '<span class="sched-badge">12:00 NN</span>'
-                '<span class="sched-badge">5:00 PM</span></div>'
+                '<span class="sched-badge">1:45 AM</span></div>'
                 '</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -837,7 +1052,6 @@ elif page == "ANALYSIS":
     }
     y_col, y_label = col_map[sensor_choice]
 
-    # ── Soil Moisture: per-plant selector ───────────────────
     if sensor_choice == "Soil Moisture (%)":
         plant_sel = st.selectbox(
             "Select Plant", list(range(1, 11)),
@@ -859,11 +1073,9 @@ elif page == "ANALYSIS":
         else:
             st.warning("No data for this plant in the selected time range.")
 
-        # All plants soil bar chart
         st.markdown('<div class="section-title">🌱 All Plants — Current Soil Moisture</div>',
                     unsafe_allow_html=True)
 
-        # Build per-plant current soil with pH badge info
         soil_rows = []
         for _, row in latest.iterrows():
             soil_rows.append({
@@ -889,13 +1101,11 @@ elif page == "ANALYSIS":
         )
         st.plotly_chart(bar, use_container_width=True)
 
-    # ── Temperature, Humidity, pH: overall greenhouse ────────
     else:
         hist_df = get_historical_data(plant_id=None, hours=hours)
         chart_title = f"{sensor_choice} — Greenhouse Overall"
 
         if not hist_df.empty:
-            # Average across all plants per timestamp
             overall = (
                 hist_df.groupby('timestamp')[y_col]
                 .mean()
@@ -905,7 +1115,6 @@ elif page == "ANALYSIS":
 
             fig = px.line(overall, x='timestamp', y=y_col, title=chart_title)
 
-            # Add pH zone reference lines for pH chart
             if sensor_choice == "pH":
                 fig.add_hline(y=6.5, line_dash="dot", line_color="#90CAF9",
                               annotation_text="Neutral (6.5)",
@@ -928,7 +1137,6 @@ elif page == "ANALYSIS":
                 title_font_color='#fff', title_font_size=12,
             )
             st.plotly_chart(fig, use_container_width=True)
-
         else:
             st.warning("No data in the selected time range.")
 
@@ -995,5 +1203,3 @@ elif page == "USERS":
         "Role":     ["Administrator",    "Standard User"]
     }))
     st.info("Future feature: add / remove users via database.")
-
-

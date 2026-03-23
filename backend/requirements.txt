@@ -8,3 +8,5 @@ numpy
 plotly
 streamlit-autorefresh
 Pillow
+google-generativeai
+google-api-python-client
