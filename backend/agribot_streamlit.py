@@ -521,7 +521,7 @@ def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
 
         # Step 3 — Send to Gemini Vision
         genai.configure(api_key=gemini_key)
-        model    = genai.GenerativeModel("gemini-1.5-flash")
+        model    = genai.GenerativeModel("gemini-2.0-flash")
         response = model.generate_content([
             pil_img,
             f"""You are an expert agronomist specializing in hydroponic lettuce cultivation
