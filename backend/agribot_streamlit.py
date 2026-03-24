@@ -1038,6 +1038,17 @@ if page == "DASHBOARD":
         else:
             st.success("✅ All parameters in range.")
 
+        # Locate where you pull the 'ai_status' for a specific plant row:
+        status_text = str(row['ai_status']).strip()
+
+        if status_text == "Wait for Batch...":
+            st.info("🕒 Bot is traveling... Analysis will appear after Plant 8.")
+        elif "Healthy" in status_text:
+            st.success("✅ Plant is Healthy")
+        elif "Warning" in status_text:
+            st.warning(f"⚠️ {status_text}")
+        elif "Critical" in status_text:
+            st.error(f"🚨 {status_text}")
 
 # ============================================================
 # PAGE: ANALYSIS
@@ -1200,12 +1211,10 @@ elif page == "LOGS":
             cfg['image_url'] = st.column_config.LinkColumn("📸 Image")
         if 'ai_status' in logs.columns:
             cols.insert(-1, 'ai_status')
-            cfg['ai_status'] = "🤖 AI Status"
-
-        st.dataframe(logs[cols].tail(50), use_container_width=True,
-                     hide_index=True, height=300, column_config=cfg)
-    else:
-        st.info("No logs available.")
+            # Use TextColumn with 'medium' width to show the full batch result
+            cfg['ai_status'] = st.column_config.TextColumn("🤖 AI Status", width="medium")
+        else:
+            st.info("No logs available.")
 
 
 # ============================================================
