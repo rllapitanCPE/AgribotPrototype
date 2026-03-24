@@ -509,7 +509,7 @@ def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
         pil_img = PILImage.open(buf)
 
         # Step 2 — Get Gemini API key from Streamlit secrets or env
-        gemini_key = "AIzaSyDfYMsclgGHYxdjeNvlZShOxwNwe1gF03Y"
+        gemini_key = "AIzaSyADdYHi3mhhSSi964jUZI3mRDOkTXcppMw"
         try:
             gemini_key = st.secrets.get("GEMINI_API_KEY", "")
         except Exception:
