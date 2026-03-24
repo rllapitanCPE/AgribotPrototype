@@ -482,13 +482,8 @@ def fetch_drive_image_private(file_id: str):
         return None
 
 
-@st.cache_data(ttl=300)  # Cache 5 min — won't re-call on every 30s autorefresh
+@st.cache_data(ttl=300)
 def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
-    """
-    Downloads the plant image privately from Drive and sends it to
-    Gemini 2.0 Flash for lettuce health analysis.
-    Returns a dict: status, issues, action, confidence.
-    """
     if not file_id:
         return {"error": "No file ID provided"}
     if not GEMINI_IMPORTS_OK:
@@ -509,7 +504,7 @@ def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
         pil_img = PILImage.open(buf)
 
         # Step 2 — Get Gemini API key from Streamlit secrets or env
-        gemini_key = "GEMINI_API_KEY"
+        gemini_key = ""          # ← FIXED: was "GEMINI_API_KEY" (wrong)
         try:
             gemini_key = st.secrets.get("GEMINI_API_KEY", "")
         except Exception:
@@ -521,7 +516,7 @@ def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
 
         # Step 3 — Send to Gemini Vision
         genai.configure(api_key=gemini_key)
-        model    = genai.GenerativeModel("gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-2.0-flash-lite")  # ← FIXED: free model
         response = model.generate_content([
             pil_img,
             f"""You are an expert agronomist specializing in hydroponic lettuce cultivation
