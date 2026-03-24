@@ -16,15 +16,18 @@ import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 
 # ============================================================
-# GEMINI AI IMPORTS
+# NOTE: Gemini is NO LONGER called from Streamlit.
+# The Pi runs Gemini 2.0 Flash Lite, writes results to the
+# ai_status column in Google Sheets, and Streamlit reads that.
+# Zero Gemini API quota is used by Streamlit.
 # ============================================================
+# Drive API is still used for private image download only.
 try:
-    import google.generativeai as genai
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaIoBaseDownload
-    GEMINI_IMPORTS_OK = True
+    DRIVE_API_OK = True
 except ImportError:
-    GEMINI_IMPORTS_OK = False
+    DRIVE_API_OK = False
 
 # ============================================================
 # PATHS
@@ -302,10 +305,16 @@ div[data-testid="stMetricValue"] {
     border-radius: 8px !important; max-height: 260px !important;
     object-fit: cover !important; width: 100% !important;
 }
-/* AI spinner styling */
-.stSpinner > div {
-    border-color: #4CAF50 !important;
+/* AI plant status cards */
+.pi-ai-card {
+    border-radius: 9px; padding: 7px 11px; margin: 3px 0;
+    font-size: 11px; line-height: 1.6;
 }
+.pi-ai-card-healthy  { background: rgba(46,125,50,0.18);  border: 1px solid #81c784; }
+.pi-ai-card-warning  { background: rgba(230,81,0,0.18);   border: 1px solid #ffb74d; }
+.pi-ai-card-critical { background: rgba(183,28,28,0.18);  border: 1px solid #ef9a9a; }
+.pi-ai-card-pending  { background: rgba(33,33,33,0.35);   border: 1px solid #555; }
+.pi-ai-card-unknown  { background: rgba(21,101,192,0.12); border: 1px solid #90CAF9; }
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
@@ -323,7 +332,6 @@ def file_to_b64(path: str) -> str:
 
 
 def ph_label(ph_val: float) -> tuple:
-    """Return (label, css_class) for a pH value."""
     if ph_val < 5.5:
         return "Acidic", "ph-acidic"
     elif ph_val <= 7.0:
@@ -349,10 +357,6 @@ def gdrive_direct_url(url: str) -> str:
 
 
 def fetch_drive_image(url: str):
-    """
-    Download image bytes from Google Drive server-side (public share fallback).
-    Returns a PIL Image or None.
-    """
     if not url:
         return None
     try:
@@ -384,10 +388,6 @@ def set_background(path: str):
 
 
 def safe_read_sheet(sheet_obj) -> pd.DataFrame:
-    """
-    Read sheet using get_all_values() to avoid crashing on duplicate
-    column headers. Returns a clean DataFrame with the 8 expected columns.
-    """
     try:
         data = sheet_obj.get_all_values()
         if not data or len(data) < 2:
@@ -421,14 +421,10 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
 
 
 # ============================================================
-# GEMINI AI — Private Drive Download + Plant Analysis
+# DRIVE IMAGE HELPERS (private download via service account)
 # ============================================================
 def _get_drive_service_private():
-    """
-    Builds a Drive service using your existing service account credentials.
-    Works on Streamlit Cloud via st.secrets OR local via credentials.json.
-    """
-    if not GEMINI_IMPORTS_OK:
+    if not DRIVE_API_OK:
         return None
     scope = ["https://www.googleapis.com/auth/drive.readonly"]
     try:
@@ -447,7 +443,6 @@ def _get_drive_service_private():
 
 
 def _get_file_id_from_url(url: str) -> str:
-    """Extract Google Drive file ID from any Drive URL format."""
     if not url:
         return ""
     if "id=" in url:
@@ -458,12 +453,7 @@ def _get_file_id_from_url(url: str) -> str:
 
 
 def fetch_drive_image_private(file_id: str):
-    """
-    Downloads image PRIVATELY using service account — no public share needed.
-    Falls back to public fetch if private fails.
-    Returns PIL Image or None.
-    """
-    if not file_id or not GEMINI_IMPORTS_OK:
+    if not file_id or not DRIVE_API_OK:
         return None
     try:
         svc = _get_drive_service_private()
@@ -482,114 +472,132 @@ def fetch_drive_image_private(file_id: str):
         return None
 
 
-@st.cache_data(ttl=300)
-def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
-    if not file_id:
-        return {"error": "No file ID provided"}
-    if not GEMINI_IMPORTS_OK:
-        return {"error": "Run: pip install google-generativeai google-api-python-client"}
+# ============================================================
+# AI STATUS HELPERS — parse Pi-written batch result from Sheets
+# ============================================================
+def parse_ai_status_column(ai_status_str: str) -> dict:
+    """
+    Parse the ai_status string written by the Pi into per-plant dict.
 
-    try:
-        # Step 1 — Download image privately via service account
-        svc = _get_drive_service_private()
-        if not svc:
-            return {"error": "Drive service unavailable — check credentials.json"}
-        request = svc.files().get_media(fileId=file_id)
-        buf = io.BytesIO()
-        dl  = MediaIoBaseDownload(buf, request)
-        done = False
-        while not done:
-            _, done = dl.next_chunk()
-        buf.seek(0)
-        pil_img = PILImage.open(buf)
+    Two formats may appear in the column:
+      1. Pi batch format (written after analysis):
+            "Healthy | None detected"   (single plant, status only)
+            "Warning | Yellowing leaves"
+            "Critical | Root rot detected"
 
-        # Step 2 — Get Gemini API key from Streamlit secrets or env
-        gemini_key = ""          # ← FIXED: was "GEMINI_API_KEY" (wrong)
-        try:
-            gemini_key = st.secrets.get("GEMINI_API_KEY", "")
-        except Exception:
-            pass
-        if not gemini_key:
-            gemini_key = os.environ.get("GEMINI_API_KEY", "")
-        if not gemini_key:
-            return {"error": "GEMINI_API_KEY missing — add to .streamlit/secrets.toml"}
+      2. Placeholder (written during capture):
+            "Wait for Batch..."
 
-        # Step 3 — Send to Gemini Vision
-        genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel("gemini-2.0-flash-lite")  # ← FIXED: free model
-        response = model.generate_content([
-            pil_img,
-            f"""You are an expert agronomist specializing in hydroponic lettuce cultivation
-at NCF-ATDC greenhouse, City of Naga, Philippines.
-Carefully analyze this image of Plant #{plant_id} captured on {timestamp}.
+      3. Occasionally the raw batch text (fallback when parsing fails on Pi):
+            "P1: STATUS: Healthy | ISSUE: None\nP2: STATUS: Warning | ISSUE: ..."
+            (stored in one cell concatenated)
 
-Reply ONLY in this exact format — no extra text, no markdown:
-STATUS: [Healthy / Warning / Critical]
-ISSUES: [comma-separated list of visible problems, or "None detected"]
-ACTION: [one specific recommended action, max 20 words]
-CONFIDENCE: [High / Medium / Low]"""
-        ])
+    Returns dict: {plant_id (int): {"status": str, "issue": str}}
+    or empty dict if unparseable / pending.
+    """
+    if not ai_status_str or ai_status_str.strip() in ("", "N/A", "nan"):
+        return {}
 
-        # Step 4 — Parse structured response
-        raw    = response.text.strip()
-        result = {"raw": raw, "plant_id": plant_id, "timestamp": timestamp}
-        for line in raw.splitlines():
-            for key in ["STATUS", "ISSUES", "ACTION", "CONFIDENCE"]:
-                if line.upper().startswith(f"{key}:"):
-                    result[key.lower()] = line.split(":", 1)[1].strip()
-        return result
+    s = ai_status_str.strip()
 
-    except Exception as e:
-        return {"error": str(e)}
+    # Pending placeholder
+    if s == "Wait for Batch...":
+        return {"__pending__": True}
+
+    # Format 1: single "Status | Issue" string (most common after Pi fix)
+    # e.g.  "Healthy | None detected"  or  "Warning | Yellowing"
+    single_re = r'^(Healthy|Warning|Critical)\s*\|\s*(.+)$'
+    m = __import__('re').match(single_re, s, __import__('re').IGNORECASE)
+    if m:
+        return {0: {"status": m.group(1).capitalize(), "issue": m.group(2).strip()}}
+
+    # Format 3: multi-plant batch text fallback
+    # "P1: STATUS: Healthy | ISSUE: None  P2: STATUS: Warning | ..."
+    multi_re = __import__('re').compile(
+        r'P(\d+)\s*:\s*STATUS\s*:\s*(Healthy|Warning|Critical)\s*\|?\s*ISSUE\s*:\s*([^\n]+)',
+        __import__('re').IGNORECASE
+    )
+    hits = multi_re.findall(s)
+    if hits:
+        return {int(pid): {"status": stat.capitalize(), "issue": issue.strip()}
+                for pid, stat, issue in hits}
+
+    # Unknown / raw text fallback — show as-is
+    return {0: {"status": "Unknown", "issue": s[:120]}}
 
 
-def render_gemini_card(analysis: dict):
-    """Renders Gemini AI result as a styled card matching the dark green dashboard theme."""
-    if not analysis:
-        return
-    if "error" in analysis:
-        st.markdown(
-            f'<div class="alert-item">🤖 AI: {analysis["error"]}</div>',
-            unsafe_allow_html=True)
+def render_pi_ai_status_panel(latest_df: pd.DataFrame):
+    """
+    Renders the 🤖 AI Health Status panel on the dashboard right column.
+    Reads ai_status from the latest sensor rows per plant.
+    No Gemini calls made here — pure Sheets read.
+    """
+    if 'ai_status' not in latest_df.columns:
+        st.info("📋 ai_status column not found in Sheets yet.")
         return
 
-    status     = analysis.get("status",     "Unknown")
-    issues     = analysis.get("issues",     "—")
-    action     = analysis.get("action",     "—")
-    confidence = analysis.get("confidence", "—")
+    # Collect the most recent NON-EMPTY ai_status per plant
+    # (regular sensor rows have blank ai_status; only camera rows have values)
+    ai_df = latest_df[
+        latest_df['ai_status'].astype(str).str.strip().isin(
+            ["", "nan", "N/A"]) == False
+    ].copy()
+
+    if ai_df.empty:
+        st.info("🕒 No AI analysis yet — waiting for next camera session.")
+        return
+
+    # Group by plant_id, take the most recent row per plant
+    ai_df = (ai_df.sort_values('timestamp')
+                  .groupby('plant_id').last()
+                  .reset_index())
 
     color_map = {
-        "Healthy":  ("#2e7d32", "#81c784", "✅"),
-        "Warning":  ("#e65100", "#ffb74d", "⚠️"),
-        "Critical": ("#b71c1c", "#ef9a9a", "🔴"),
+        "Healthy":  ("#81c784", "pi-ai-card-healthy",  "✅"),
+        "Warning":  ("#ffb74d", "pi-ai-card-warning",  "⚠️"),
+        "Critical": ("#ef9a9a", "pi-ai-card-critical", "🔴"),
+        "Unknown":  ("#90CAF9", "pi-ai-card-unknown",  "ℹ️"),
     }
-    bg, border, icon = color_map.get(status, ("#1a237e", "#90CAF9", "ℹ️"))
-    r_val = int(bg[1:3], 16)
-    g_val = int(bg[3:5], 16)
-    b_val = int(bg[5:7], 16)
 
-    st.markdown(f"""
-    <div style='background:rgba({r_val},{g_val},{b_val},0.18);
-         border:1px solid {border}; border-radius:10px;
-         padding:10px 14px; margin-top:8px;'>
-        <div style='font-size:11px;font-weight:900;color:{border};
-             letter-spacing:1px;margin-bottom:6px;'>
-            {icon} GEMINI AI — Plant {analysis.get("plant_id","")}
-            <span style='font-size:9px;color:#888;margin-left:6px;font-weight:400;'>
-            {analysis.get("timestamp","")}
-            </span>
-        </div>
-        <div style='font-size:11px;color:#e8f5e9;line-height:2;'>
-            <b style='color:#a5d6a7;'>Status :</b> {status}<br>
-            <b style='color:#a5d6a7;'>Issues :</b> {issues}<br>
-            <b style='color:#a5d6a7;'>Action :</b> {action}<br>
-            <b style='color:#a5d6a7;'>Confidence:</b> {confidence}
-        </div>
-    </div>""", unsafe_allow_html=True)
+    any_rendered = False
+    for _, row_data in ai_df.iterrows():
+        pid        = int(row_data['plant_id'])
+        raw_status = str(row_data['ai_status']).strip()
+        parsed     = parse_ai_status_column(raw_status)
+
+        if not parsed:
+            continue
+
+        # Pending row
+        if parsed.get("__pending__"):
+            st.markdown(
+                f'<div class="pi-ai-card pi-ai-card-pending" style="color:#aaa;">'
+                f'🕒 P{pid}: Analyzing... (bot traveling)</div>',
+                unsafe_allow_html=True)
+            any_rendered = True
+            continue
+
+        # Rendered result — use plant_id from outer loop (row_data)
+        # parsed key is 0 for single-plant format, or real pid for batch format
+        entry = parsed.get(pid) or parsed.get(0) or list(parsed.values())[0]
+        status = entry.get("status", "Unknown")
+        issue  = entry.get("issue",  "—")
+        txt_c, css_cls, icon = color_map.get(status, ("#90CAF9", "pi-ai-card-unknown", "ℹ️"))
+
+        st.markdown(
+            f'<div class="pi-ai-card {css_cls}">'
+            f'<span style="font-weight:900;color:{txt_c};">{icon} P{pid}: {status}</span>'
+            f'<br><span style="color:#ccc;font-size:10px;">Issue: {issue}</span>'
+            f'</div>',
+            unsafe_allow_html=True)
+        any_rendered = True
+
+    if not any_rendered:
+        st.info("🕒 No AI results yet — waiting for camera session.")
 
 
 # ============================================================
-# SESSION STATE  ← FIX: all keys initialised here before use
+# SESSION STATE
 # ============================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -597,14 +605,6 @@ if "logged_in" not in st.session_state:
 
 if "page" not in st.session_state:
     st.session_state.page = "landing"
-
-# Gemini result persists across autorefresh reruns
-if "gemini_result" not in st.session_state:
-    st.session_state.gemini_result = None
-
-# Track which file_id was last analyzed so we don't re-call on every 30s refresh
-if "last_analyzed_file_id" not in st.session_state:
-    st.session_state.last_analyzed_file_id = ""
 
 USERS = {
     "admin@agribot.ai": {"password": "admin123", "role": "admin"},
@@ -913,29 +913,6 @@ if page == "DASHBOARD":
 
             if pil_img:
                 st.image(pil_img, use_container_width=True)
-
-                # ── AUTO Gemini AI Analysis (no button) ───────
-                # Only re-analyzes when a new image arrives (file_id changes)
-                if GEMINI_IMPORTS_OK and file_id:
-                    if st.session_state.last_analyzed_file_id != file_id:
-                        with st.spinner("🤖 Analyzing lettuce health with Gemini AI..."):
-                            st.session_state.gemini_result = analyze_plant_with_gemini(
-                                file_id,
-                                img_data.get("plant_id", "?"),
-                                img_data.get("timestamp", "")
-                            )
-                            st.session_state.last_analyzed_file_id = file_id
-
-                    # Always render last result
-                    if st.session_state.gemini_result:
-                        render_gemini_card(st.session_state.gemini_result)
-
-                elif not GEMINI_IMPORTS_OK:
-                    st.markdown(
-                        '<div style="font-size:10px;color:#666;margin-top:4px;">'
-                        '⚠️ Gemini AI not installed — run: pip install google-generativeai google-api-python-client</div>',
-                        unsafe_allow_html=True)
-
             else:
                 st.markdown(
                     '<div class="cam-placeholder">'
@@ -945,6 +922,46 @@ if page == "DASHBOARD":
                     'Check Drive sharing permissions or credentials.json.</div>'
                     '</div>', unsafe_allow_html=True)
 
+            # Show the Pi-side ai_status for the latest captured plant
+            latest_ai = img_data.get("ai_status", "")
+            if latest_ai and latest_ai not in ("", "nan", "N/A"):
+                if latest_ai == "Wait for Batch...":
+                    st.markdown(
+                        '<div class="pi-ai-card pi-ai-card-pending" style="color:#aaa;margin-top:6px;">'
+                        '🕒 AI analyzing batch... result will appear after all plants are captured.'
+                        '</div>', unsafe_allow_html=True)
+                else:
+                    parsed_latest = parse_ai_status_column(latest_ai)
+                    entry = (parsed_latest.get(img_data.get("plant_id", 0))
+                             or parsed_latest.get(0)
+                             or (list(parsed_latest.values())[0] if parsed_latest else None))
+                    if entry and not parsed_latest.get("__pending__"):
+                        status = entry.get("status", "Unknown")
+                        issue  = entry.get("issue",  "—")
+                        color_map = {
+                            "Healthy":  ("#81c784", "#2e7d32", "✅"),
+                            "Warning":  ("#ffb74d", "#e65100", "⚠️"),
+                            "Critical": ("#ef9a9a", "#b71c1c", "🔴"),
+                        }
+                        txt_c, bg_c, icon = color_map.get(status, ("#90CAF9", "#1a237e", "ℹ️"))
+                        r_val = int(bg_c[1:3], 16)
+                        g_val = int(bg_c[3:5], 16)
+                        b_val = int(bg_c[5:7], 16)
+                        st.markdown(
+                            f'<div style="background:rgba({r_val},{g_val},{b_val},0.18);'
+                            f'border:1px solid {txt_c};border-radius:10px;'
+                            f'padding:10px 14px;margin-top:8px;">'
+                            f'<div style="font-size:11px;font-weight:900;color:{txt_c};'
+                            f'letter-spacing:1px;margin-bottom:4px;">'
+                            f'{icon} Pi AI — Plant {img_data.get("plant_id","")}'
+                            f'<span style="font-size:9px;color:#888;margin-left:6px;font-weight:400;">'
+                            f'{img_data.get("timestamp","")}</span></div>'
+                            f'<div style="font-size:11px;color:#e8f5e9;line-height:1.8;">'
+                            f'<b style="color:#a5d6a7;">Status :</b> {status}<br>'
+                            f'<b style="color:#a5d6a7;">Issue  :</b> {issue}'
+                            f'</div></div>',
+                            unsafe_allow_html=True)
+
             pid_txt = f"🥬 Plant {img_data['plant_id']}" if img_data.get("plant_id") else ""
             ts_txt  = f"🕒 {img_data['timestamp']}"       if img_data.get("timestamp") else ""
             st.markdown(
@@ -952,7 +969,7 @@ if page == "DASHBOARD":
                 f'Captured at '
                 f'<span class="sched-badge">7:00 AM</span>'
                 f'<span class="sched-badge">12:00 NN</span>'
-                f'<span class="sched-badge">1:45 AM</span></div>'
+                f'<span class="sched-badge">4:09 PM</span></div>'
                 f'<a href="{DRIVE_FOLDER_URL}" target="_blank" class="drive-link">'
                 f'☁️ View all in Drive ↗</a>',
                 unsafe_allow_html=True)
@@ -965,7 +982,7 @@ if page == "DASHBOARD":
                 'Captures at '
                 '<span class="sched-badge">7:00 AM</span>'
                 '<span class="sched-badge">12:00 NN</span>'
-                '<span class="sched-badge">1:45 AM</span></div>'
+                '<span class="sched-badge">4:09 PM</span></div>'
                 '</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -978,25 +995,14 @@ if page == "DASHBOARD":
                 f'margin-bottom:6px;">🔄 {last_ts.strftime("%H:%M:%S")}</div>',
                 unsafe_allow_html=True)
 
+        # ── 🤖 AI Health Status (Pi-written, read from Sheets) ─
         st.markdown('<div class="section-title">🤖 AI Health Status</div>',
                     unsafe_allow_html=True)
 
-        # -- Show Pi-side Gemini result from Sheets (ai_status column) --
-        pi_ai_status = img_data.get("ai_status", "") if img_data else ""
-        if pi_ai_status and pi_ai_status not in ("", "N/A", "nan"):
-            status_color = {
-                "Healthy":  ("#81c784", "#2e7d32", "✅"),
-                "Warning":  ("#ffb74d", "#e65100", "⚠️"),
-                "Critical": ("#ef9a9a", "#b71c1c", "🔴"),
-            }.get(pi_ai_status, ("#90CAF9", "#1a237e", "ℹ️"))
-            txt_c, bg_c, ico = status_color
-            st.markdown(
-                f'<div style="background:rgba(0,0,0,0.2);border:1px solid {txt_c};'
-                f'border-radius:8px;padding:6px 10px;font-size:12px;color:{txt_c};margin-bottom:4px;">'
-                f'{ico} Pi AI: <b>{pi_ai_status}</b>'
-                f'</div>', unsafe_allow_html=True)
+        # FIXED: render_pi_ai_status_panel reads ai_status column — no Gemini calls
+        render_pi_ai_status_panel(latest)
 
-        # -- Anomaly model status --
+        # ── Anomaly model status ───────────────────────────────
         p1 = latest[latest['plant_id'] == 1]
         if not p1.empty and model and scaler:
             try:
@@ -1016,6 +1022,7 @@ if page == "DASHBOARD":
         st.markdown("<div style='margin:6px 0 2px;'></div>", unsafe_allow_html=True)
         st.markdown('<div class="section-title">🔔 Alerts</div>',
                     unsafe_allow_html=True)
+
         alerts = []
         for _, plant in latest.iterrows():
             pid  = int(plant['plant_id'])
@@ -1038,17 +1045,6 @@ if page == "DASHBOARD":
         else:
             st.success("✅ All parameters in range.")
 
-        # Locate where you pull the 'ai_status' for a specific plant row:
-        status_text = str(row['ai_status']).strip()
-
-        if status_text == "Wait for Batch...":
-            st.info("🕒 Bot is traveling... Analysis will appear after Plant 8.")
-        elif "Healthy" in status_text:
-            st.success("✅ Plant is Healthy")
-        elif "Warning" in status_text:
-            st.warning(f"⚠️ {status_text}")
-        elif "Critical" in status_text:
-            st.error(f"🚨 {status_text}")
 
 # ============================================================
 # PAGE: ANALYSIS
@@ -1198,23 +1194,30 @@ elif page == "LOGS":
         logs['event'] = logs.apply(classify, axis=1)
         cols = ['timestamp', 'plant_id', 'temp_c', 'humidity', 'soil_moisture', 'ph', 'event']
         cfg  = {
-            "timestamp":     "Time",
-            "plant_id":      "Plant",
-            "temp_c":        "Temp (°C)",
-            "humidity":      "Hum (%)",
-            "soil_moisture": "Soil %",
-            "ph":            "pH",
-            "event":         "Event",
+            "timestamp":     st.column_config.TextColumn("Time"),
+            "plant_id":      st.column_config.NumberColumn("Plant"),
+            "temp_c":        st.column_config.NumberColumn("Temp (°C)"),
+            "humidity":      st.column_config.NumberColumn("Hum (%)"),
+            "soil_moisture": st.column_config.NumberColumn("Soil %"),
+            "ph":            st.column_config.NumberColumn("pH"),
+            "event":         st.column_config.TextColumn("Event"),
         }
         if 'image_url' in logs.columns:
             cols.insert(-1, 'image_url')
             cfg['image_url'] = st.column_config.LinkColumn("📸 Image")
         if 'ai_status' in logs.columns:
             cols.insert(-1, 'ai_status')
-            # Use TextColumn with 'medium' width to show the full batch result
             cfg['ai_status'] = st.column_config.TextColumn("🤖 AI Status", width="medium")
-        else:
-            st.info("No logs available.")
+
+        display_cols = [c for c in cols if c in logs.columns]
+        st.dataframe(
+            logs[display_cols].sort_values('timestamp', ascending=False),
+            column_config=cfg,
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info("No logs available for the last 24 hours.")
 
 
 # ============================================================
