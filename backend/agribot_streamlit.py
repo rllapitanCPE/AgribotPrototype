@@ -486,7 +486,7 @@ def fetch_drive_image_private(file_id: str):
 def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
     """
     Downloads the plant image privately from Drive and sends it to
-    Gemini 1.5 Flash for lettuce health analysis.
+    Gemini 2.0 Flash for lettuce health analysis.
     Returns a dict: status, issues, action, confidence.
     """
     if not file_id:
@@ -509,7 +509,7 @@ def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
         pil_img = PILImage.open(buf)
 
         # Step 2 — Get Gemini API key from Streamlit secrets or env
-        gemini_key = "AIzaSyADdYHi3mhhSSi964jUZI3mRDOkTXcppMw"
+        gemini_key = "GEMINI_API_KEY"
         try:
             gemini_key = st.secrets.get("GEMINI_API_KEY", "")
         except Exception:
