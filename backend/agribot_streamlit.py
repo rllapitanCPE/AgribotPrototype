@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 
 # ============================================================
-# GEMINI AI IMPORTS  (NEW)
+# GEMINI AI IMPORTS
 # ============================================================
 try:
     import google.generativeai as genai
@@ -302,13 +302,9 @@ div[data-testid="stMetricValue"] {
     border-radius: 8px !important; max-height: 260px !important;
     object-fit: cover !important; width: 100% !important;
 }
-/* Gemini AI button styling */
-.stButton > button[kind="secondary"] {
-    background: linear-gradient(135deg, rgba(46,125,50,0.3), rgba(76,175,80,0.2)) !important;
-    border: 1px solid rgba(76,175,80,0.5) !important;
-    color: #81c784 !important; font-size: 11px !important;
-    border-radius: 8px !important; padding: 4px 10px !important;
-    font-weight: 700 !important; letter-spacing: 0.5px !important;
+/* AI spinner styling */
+.stSpinner > div {
+    border-color: #4CAF50 !important;
 }
 </style>
 """
@@ -328,9 +324,9 @@ def file_to_b64(path: str) -> str:
 
 def ph_label(ph_val: float) -> tuple:
     """Return (label, css_class) for a pH value."""
-    if ph_val < 6.5:
+    if ph_val < 5.5:
         return "Acidic", "ph-acidic"
-    elif ph_val <= 7.5:
+    elif ph_val <= 7.0:
         return "Neutral", "ph-neutral"
     else:
         return "Alkaline", "ph-alkaline"
@@ -390,7 +386,7 @@ def set_background(path: str):
 def safe_read_sheet(sheet_obj) -> pd.DataFrame:
     """
     Read sheet using get_all_values() to avoid crashing on duplicate
-    column headers. Returns a clean DataFrame with the 7 expected columns.
+    column headers. Returns a clean DataFrame with the 8 expected columns.
     """
     try:
         data = sheet_obj.get_all_values()
@@ -409,7 +405,7 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
                 headers.append(h)
         df = pd.DataFrame(data[1:], columns=headers)
         expected = ['timestamp', 'plant_id', 'temp_c', 'humidity',
-                    'soil_moisture', 'ph', 'image_url']
+                    'soil_moisture', 'ph', 'image_url', 'ai_status']
         df = df[[c for c in expected if c in df.columns]]
         df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         for col in ['temp_c', 'humidity', 'soil_moisture', 'ph']:
@@ -425,13 +421,12 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
 
 
 # ============================================================
-# GEMINI AI — Private Drive Download + Plant Analysis  (NEW)
+# GEMINI AI — Private Drive Download + Plant Analysis
 # ============================================================
 def _get_drive_service_private():
     """
     Builds a Drive service using your existing service account credentials.
     Works on Streamlit Cloud via st.secrets OR local via credentials.json.
-    Images do NOT need to be publicly shared — service account has access.
     """
     if not GEMINI_IMPORTS_OK:
         return None
@@ -487,7 +482,7 @@ def fetch_drive_image_private(file_id: str):
         return None
 
 
-@st.cache_data(ttl=300)  # Cache 5 min — won't re-run on every 30s autorefresh
+@st.cache_data(ttl=300)  # Cache 5 min — won't re-call on every 30s autorefresh
 def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
     """
     Downloads the plant image privately from Drive and sends it to
@@ -503,7 +498,7 @@ def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
         # Step 1 — Download image privately via service account
         svc = _get_drive_service_private()
         if not svc:
-            return {"error": "Drive service unavailable — check credentials"}
+            return {"error": "Drive service unavailable — check credentials.json"}
         request = svc.files().get_media(fileId=file_id)
         buf = io.BytesIO()
         dl  = MediaIoBaseDownload(buf, request)
@@ -513,17 +508,24 @@ def analyze_plant_with_gemini(file_id: str, plant_id, timestamp: str) -> dict:
         buf.seek(0)
         pil_img = PILImage.open(buf)
 
-        # Step 2 — Get Gemini API key from Streamlit secrets
-        gemini_key = st.secrets.get("GEMINI_API_KEY", "")
+        # Step 2 — Get Gemini API key from Streamlit secrets or env
+        gemini_key = "AIzaSyDfYMsclgGHYxdjeNvlZShOxwNwe1gF03Y"
+        try:
+            gemini_key = st.secrets.get("GEMINI_API_KEY", "")
+        except Exception:
+            pass
         if not gemini_key:
-            return {"error": "GEMINI_API_KEY missing — add it to Streamlit Cloud Secrets"}
+            gemini_key = os.environ.get("GEMINI_API_KEY", "")
+        if not gemini_key:
+            return {"error": "GEMINI_API_KEY missing — add to .streamlit/secrets.toml"}
 
         # Step 3 — Send to Gemini Vision
         genai.configure(api_key=gemini_key)
         model    = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content([
             pil_img,
-            f"""You are an expert agronomist specializing in hydroponic lettuce cultivation.
+            f"""You are an expert agronomist specializing in hydroponic lettuce cultivation
+at NCF-ATDC greenhouse, City of Naga, Philippines.
 Carefully analyze this image of Plant #{plant_id} captured on {timestamp}.
 
 Reply ONLY in this exact format — no extra text, no markdown:
@@ -552,7 +554,7 @@ def render_gemini_card(analysis: dict):
         return
     if "error" in analysis:
         st.markdown(
-            f'<div class="alert-item">🤖 AI unavailable: {analysis["error"]}</div>',
+            f'<div class="alert-item">🤖 AI: {analysis["error"]}</div>',
             unsafe_allow_html=True)
         return
 
@@ -578,7 +580,7 @@ def render_gemini_card(analysis: dict):
         <div style='font-size:11px;font-weight:900;color:{border};
              letter-spacing:1px;margin-bottom:6px;'>
             {icon} GEMINI AI — Plant {analysis.get("plant_id","")}
-            <span style='font-size:9px;color:#666;margin-left:6px;font-weight:400;'>
+            <span style='font-size:9px;color:#888;margin-left:6px;font-weight:400;'>
             {analysis.get("timestamp","")}
             </span>
         </div>
@@ -592,7 +594,7 @@ def render_gemini_card(analysis: dict):
 
 
 # ============================================================
-# SESSION STATE
+# SESSION STATE  ← FIX: all keys initialised here before use
 # ============================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -601,9 +603,13 @@ if "logged_in" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "landing"
 
-# Store last AI analysis result in session so it persists across reruns
+# Gemini result persists across autorefresh reruns
 if "gemini_result" not in st.session_state:
     st.session_state.gemini_result = None
+
+# Track which file_id was last analyzed so we don't re-call on every 30s refresh
+if "last_analyzed_file_id" not in st.session_state:
+    st.session_state.last_analyzed_file_id = ""
 
 USERS = {
     "admin@agribot.ai": {"password": "admin123", "role": "admin"},
@@ -783,6 +789,7 @@ def get_latest_plant_image() -> dict:
         "url":       gdrive_direct_url(str(row['image_url']).strip()),
         "plant_id":  int(row['plant_id']),
         "timestamp": pd.to_datetime(row['timestamp']).strftime("%b %d, %Y · %I:%M %p"),
+        "ai_status": str(row.get('ai_status', '')).strip() if 'ai_status' in row else "",
     }
 
 
@@ -843,10 +850,10 @@ with st.sidebar:
 model,  scaler = load_assets()
 latest         = get_latest_readings()
 
-PH_LOW,   PH_HIGH   = 5.5, 6.5
-SOIL_DRY, SOIL_WET  = 30,  80
-TEMP_LOW, TEMP_HIGH = 15,  30
-HUM_LOW,  HUM_HIGH  = 50,  85
+PH_LOW,   PH_HIGH   = 5.5, 7.0
+SOIL_DRY, SOIL_WET  = 30,  85
+TEMP_LOW, TEMP_HIGH = 15,  35
+HUM_LOW,  HUM_HIGH  = 50,  90
 
 # Auto-refresh every 30 seconds
 st_autorefresh(interval=30000, key="autorefresh")
@@ -895,7 +902,7 @@ if page == "DASHBOARD":
     img_data = get_latest_plant_image()
     cam_col, right_col = st.columns([3, 2], gap="small")
 
-    # ── Plant Health Feed  (UPDATED — private Drive + Gemini AI) ─
+    # ── Plant Health Feed ─────────────────────────────────────
     with cam_col:
         st.markdown('<div style="margin-top: 10px;">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">📷 Plant Health Feed</div>',
@@ -912,27 +919,26 @@ if page == "DASHBOARD":
             if pil_img:
                 st.image(pil_img, use_container_width=True)
 
-                # ── Gemini AI Analysis Button ──────────────────
-                if GEMINI_IMPORTS_OK:
-                    if st.button(
-                        "🤖 Analyze with Gemini AI",
-                        key=f"gemini_{file_id[:8] if file_id else 'x'}",
-                        use_container_width=True
-                    ):
-                        with st.spinner("Analyzing lettuce health with Gemini AI..."):
+                # ── AUTO Gemini AI Analysis (no button) ───────
+                # Only re-analyzes when a new image arrives (file_id changes)
+                if GEMINI_IMPORTS_OK and file_id:
+                    if st.session_state.last_analyzed_file_id != file_id:
+                        with st.spinner("🤖 Analyzing lettuce health with Gemini AI..."):
                             st.session_state.gemini_result = analyze_plant_with_gemini(
                                 file_id,
                                 img_data.get("plant_id", "?"),
                                 img_data.get("timestamp", "")
                             )
+                            st.session_state.last_analyzed_file_id = file_id
 
-                    # Show last AI result (persists across autorefresh)
+                    # Always render last result
                     if st.session_state.gemini_result:
                         render_gemini_card(st.session_state.gemini_result)
-                else:
+
+                elif not GEMINI_IMPORTS_OK:
                     st.markdown(
                         '<div style="font-size:10px;color:#666;margin-top:4px;">'
-                        '⚠️ Gemini AI not installed — add to requirements.txt</div>',
+                        '⚠️ Gemini AI not installed — run: pip install google-generativeai google-api-python-client</div>',
                         unsafe_allow_html=True)
 
             else:
@@ -941,7 +947,7 @@ if page == "DASHBOARD":
                     '<div style="font-size:28px;">⚠️</div>'
                     '<div style="font-size:11px;color:#ef9a9a;margin-top:6px;">'
                     'Image could not be loaded.<br>'
-                    'Check Drive sharing permissions.</div>'
+                    'Check Drive sharing permissions or credentials.json.</div>'
                     '</div>', unsafe_allow_html=True)
 
             pid_txt = f"🥬 Plant {img_data['plant_id']}" if img_data.get("plant_id") else ""
@@ -968,7 +974,7 @@ if page == "DASHBOARD":
                 '</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── AI Status + Alerts ───────────────────────────────────
+    # ── AI Health Status + Alerts ─────────────────────────────
     with right_col:
         if not latest.empty:
             last_ts = pd.to_datetime(latest['timestamp']).max()
@@ -979,6 +985,23 @@ if page == "DASHBOARD":
 
         st.markdown('<div class="section-title">🤖 AI Health Status</div>',
                     unsafe_allow_html=True)
+
+        # -- Show Pi-side Gemini result from Sheets (ai_status column) --
+        pi_ai_status = img_data.get("ai_status", "") if img_data else ""
+        if pi_ai_status and pi_ai_status not in ("", "N/A", "nan"):
+            status_color = {
+                "Healthy":  ("#81c784", "#2e7d32", "✅"),
+                "Warning":  ("#ffb74d", "#e65100", "⚠️"),
+                "Critical": ("#ef9a9a", "#b71c1c", "🔴"),
+            }.get(pi_ai_status, ("#90CAF9", "#1a237e", "ℹ️"))
+            txt_c, bg_c, ico = status_color
+            st.markdown(
+                f'<div style="background:rgba(0,0,0,0.2);border:1px solid {txt_c};'
+                f'border-radius:8px;padding:6px 10px;font-size:12px;color:{txt_c};margin-bottom:4px;">'
+                f'{ico} Pi AI: <b>{pi_ai_status}</b>'
+                f'</div>', unsafe_allow_html=True)
+
+        # -- Anomaly model status --
         p1 = latest[latest['plant_id'] == 1]
         if not p1.empty and model and scaler:
             try:
@@ -1116,16 +1139,16 @@ elif page == "ANALYSIS":
             fig = px.line(overall, x='timestamp', y=y_col, title=chart_title)
 
             if sensor_choice == "pH":
-                fig.add_hline(y=6.5, line_dash="dot", line_color="#90CAF9",
-                              annotation_text="Neutral (6.5)",
+                fig.add_hline(y=5.5, line_dash="dot", line_color="#ef9a9a",
+                              annotation_text="Low threshold (5.5)",
                               annotation_position="bottom right",
-                              annotation_font_color="#90CAF9")
-                fig.add_hline(y=7.5, line_dash="dot", line_color="#ef9a9a",
-                              annotation_text="Alkaline (7.5)",
-                              annotation_position="top right",
                               annotation_font_color="#ef9a9a")
-                fig.add_hrect(y0=6.5, y1=7.5, fillcolor="rgba(76,175,80,0.07)",
-                              line_width=0, annotation_text="Neutral zone",
+                fig.add_hline(y=7.0, line_dash="dot", line_color="#90CAF9",
+                              annotation_text="High threshold (7.0)",
+                              annotation_position="top right",
+                              annotation_font_color="#90CAF9")
+                fig.add_hrect(y0=5.5, y1=7.0, fillcolor="rgba(76,175,80,0.07)",
+                              line_width=0, annotation_text="Optimal zone",
                               annotation_font_color="#66bb6a")
 
             fig.update_layout(
@@ -1180,6 +1203,9 @@ elif page == "LOGS":
         if 'image_url' in logs.columns:
             cols.insert(-1, 'image_url')
             cfg['image_url'] = st.column_config.LinkColumn("📸 Image")
+        if 'ai_status' in logs.columns:
+            cols.insert(-1, 'ai_status')
+            cfg['ai_status'] = "🤖 AI Status"
 
         st.dataframe(logs[cols].tail(50), use_container_width=True,
                      hide_index=True, height=300, column_config=cfg)
