@@ -13,15 +13,16 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
+import re
 from streamlit_autorefresh import st_autorefresh
 
 # ============================================================
-# NOTE: Gemini is NO LONGER called from Streamlit.
-# The Pi runs Gemini 2.0 Flash Lite, writes results to the
-# ai_status column in Google Sheets, and Streamlit reads that.
-# Zero Gemini API quota is used by Streamlit.
+# NOTE: Gemini is NOT called from Streamlit.
+# The Pi runs Gemini, writes the full structured result
+# (Status + Findings + Recommendation + SMS Sent flag) to the
+# ai_status column in Google Sheets.
+# Streamlit reads that column — zero Gemini quota used here.
 # ============================================================
-# Drive API is still used for private image download only.
 try:
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaIoBaseDownload
@@ -55,6 +56,7 @@ if not os.path.exists(CREDENTIALS_FILE):
 SPREADSHEET_ID   = "1mYScsUkoZn84FIoO_QMaku3gZT3Z9df72kPE3ray9-A"
 DRIVE_FOLDER_ID  = "1g6Tg0UZSuFrJchPyRJLgcJmM_X4Ggatm"
 DRIVE_FOLDER_URL = f"https://drive.google.com/drive/folders/{DRIVE_FOLDER_ID}"
+STREAMLIT_URL    = "https://agribotai.streamlit.app"
 
 # ── Tab favicon ──────────────────────────────────────────────
 _page_icon = "🌱"
@@ -307,14 +309,27 @@ div[data-testid="stMetricValue"] {
 }
 /* AI plant status cards */
 .pi-ai-card {
-    border-radius: 9px; padding: 7px 11px; margin: 3px 0;
-    font-size: 11px; line-height: 1.6;
+    border-radius: 9px; padding: 8px 11px; margin: 4px 0;
+    font-size: 11px; line-height: 1.7;
 }
 .pi-ai-card-healthy  { background: rgba(46,125,50,0.18);  border: 1px solid #81c784; }
 .pi-ai-card-warning  { background: rgba(230,81,0,0.18);   border: 1px solid #ffb74d; }
 .pi-ai-card-critical { background: rgba(183,28,28,0.18);  border: 1px solid #ef9a9a; }
 .pi-ai-card-pending  { background: rgba(33,33,33,0.35);   border: 1px solid #555; }
 .pi-ai-card-unknown  { background: rgba(21,101,192,0.12); border: 1px solid #90CAF9; }
+/* SMS sent badge */
+.sms-sent-badge {
+    display: inline-block; background: rgba(21,101,192,0.25);
+    border: 1px solid #90CAF9; border-radius: 4px;
+    padding: 1px 6px; font-size: 9px; color: #90CAF9; font-weight: 700;
+    margin-left: 6px; vertical-align: middle; letter-spacing: 0.5px;
+}
+.sms-no-badge {
+    display: inline-block; background: rgba(66,66,66,0.25);
+    border: 1px solid #888; border-radius: 4px;
+    padding: 1px 6px; font-size: 9px; color: #aaa; font-weight: 700;
+    margin-left: 6px; vertical-align: middle;
+}
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
@@ -460,8 +475,8 @@ def fetch_drive_image_private(file_id: str):
         if not svc:
             return None
         request = svc.files().get_media(fileId=file_id)
-        buf = io.BytesIO()
-        dl  = MediaIoBaseDownload(buf, request)
+        buf  = io.BytesIO()
+        dl   = MediaIoBaseDownload(buf, request)
         done = False
         while not done:
             _, done = dl.next_chunk()
@@ -473,73 +488,117 @@ def fetch_drive_image_private(file_id: str):
 
 
 # ============================================================
-# AI STATUS HELPERS — parse Pi-written batch result from Sheets
+# AI STATUS HELPERS — parse Pi-written result from Sheets
 # ============================================================
 def parse_ai_status_column(ai_status_str: str) -> dict:
     """
-    Parse the ai_status string written by the Pi into per-plant dict.
+    Parse the full structured ai_status string written by the Pi.
 
-    Two formats may appear in the column:
-      1. Pi batch format (written after analysis):
-            "Healthy | None detected"   (single plant, status only)
-            "Warning | Yellowing leaves"
-            "Critical | Root rot detected"
+    Expected format in Sheets cell:
+        Status: Warning
+        Findings:
+          Image         : Slight wilting observed
+          Soil Moisture : Low (45 %)
+          Temperature   : Normal (28 °C)
+          Humidity      : Low (40 %)
+          pH Level      : Normal (6.5)
+        Recommendation:
+          Increase irrigation to raise soil moisture...
+        SMS Sent: Yes
 
-      2. Placeholder (written during capture):
-            "Wait for Batch..."
+    Also handles:
+      - "Wait for Batch..."     → pending state
+      - Legacy short format     → "Healthy | None detected"
+      - Unknown / raw fallback  → shows as-is
 
-      3. Occasionally the raw batch text (fallback when parsing fails on Pi):
-            "P1: STATUS: Healthy | ISSUE: None\nP2: STATUS: Warning | ISSUE: ..."
-            (stored in one cell concatenated)
-
-    Returns dict: {plant_id (int): {"status": str, "issue": str}}
-    or empty dict if unparseable / pending.
+    Returns a flat dict:
+        {
+          'status'           : str,
+          'findings_image'   : str,
+          'findings_soil'    : str,
+          'findings_temp'    : str,
+          'findings_humidity': str,
+          'findings_ph'      : str,
+          'recommendation'   : str,
+          'sms_sent'         : "Yes" | "No" | "N/A",
+        }
+    or  {'__pending__': True}
+    or  {}  if empty / unparseable
     """
-    if not ai_status_str or ai_status_str.strip() in ("", "N/A", "nan"):
+    if not ai_status_str or str(ai_status_str).strip() in ("", "N/A", "nan"):
         return {}
 
-    s = ai_status_str.strip()
+    s = str(ai_status_str).strip()
 
-    # Pending placeholder
+    # ── Pending placeholder ──────────────────────────────────
     if s == "Wait for Batch...":
         return {"__pending__": True}
 
-    # Format 1: single "Status | Issue" string (most common after Pi fix)
-    # e.g.  "Healthy | None detected"  or  "Warning | Yellowing"
-    single_re = r'^(Healthy|Warning|Critical)\s*\|\s*(.+)$'
-    m = __import__('re').match(single_re, s, __import__('re').IGNORECASE)
-    if m:
-        return {0: {"status": m.group(1).capitalize(), "issue": m.group(2).strip()}}
+    result = {}
 
-    # Format 3: multi-plant batch text fallback
-    # "P1: STATUS: Healthy | ISSUE: None  P2: STATUS: Warning | ..."
-    multi_re = __import__('re').compile(
-        r'P(\d+)\s*:\s*STATUS\s*:\s*(Healthy|Warning|Critical)\s*\|?\s*ISSUE\s*:\s*([^\n]+)',
-        __import__('re').IGNORECASE
-    )
-    hits = multi_re.findall(s)
-    if hits:
-        return {int(pid): {"status": stat.capitalize(), "issue": issue.strip()}
-                for pid, stat, issue in hits}
+    # ── Status ───────────────────────────────────────────────
+    sm = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
+    result['status'] = sm.group(1).strip().capitalize() if sm else "Unknown"
 
-    # Unknown / raw text fallback — show as-is
-    return {0: {"status": "Unknown", "issue": s[:120]}}
+    # ── Findings ─────────────────────────────────────────────
+    def _find(pattern):
+        m = re.search(pattern, s, re.IGNORECASE)
+        return m.group(1).strip() if m else "N/A"
+
+    result['findings_image']    = _find(r'Image\s*:\s*(.+)')
+    result['findings_soil']     = _find(r'Soil Moisture\s*:\s*(.+)')
+    result['findings_temp']     = _find(r'Temperature\s*:\s*(.+)')
+    result['findings_humidity'] = _find(r'Humidity\s*:\s*(.+)')
+    result['findings_ph']       = _find(r'pH Level\s*:\s*(.+)')
+
+    # ── Recommendation (multi-line) ───────────────────────────
+    rec_m = re.search(
+        r'Recommendation:\s*\n([\s\S]+?)(?=\nSMS Sent:|\Z)', s)
+    if rec_m:
+        # Strip leading spaces from each line
+        rec_lines = [ln.lstrip() for ln in rec_m.group(1).splitlines() if ln.strip()]
+        result['recommendation'] = " ".join(rec_lines)
+    else:
+        result['recommendation'] = "N/A"
+
+    # ── SMS Sent flag ────────────────────────────────────────
+    sms_m = re.search(r'SMS Sent:\s*(Yes|No)', s, re.IGNORECASE)
+    result['sms_sent'] = sms_m.group(1).capitalize() if sms_m else "N/A"
+
+    # ── Legacy fallback: old short format "Status | Issue" ───
+    if result['status'] == "Unknown" and '|' in s and '\n' not in s:
+        parts = s.split('|', 1)
+        leg_status = parts[0].strip().capitalize()
+        if leg_status in ("Healthy", "Warning", "Critical"):
+            result['status']         = leg_status
+            result['recommendation'] = parts[1].strip() if len(parts) > 1 else "N/A"
+
+    return result
 
 
-def render_pi_ai_status_panel(latest_df: pd.DataFrame):
+def render_pi_ai_status_panel(latest_df: pd.DataFrame,
+                               ai_status_df: pd.DataFrame = None):
     """
     Renders the 🤖 AI Health Status panel on the dashboard right column.
-    Reads ai_status from the latest sensor rows per plant.
-    No Gemini calls made here — pure Sheets read.
+
+    Reads ai_status from ai_status_df — the most recent NON-BLANK ai_status
+    row per plant (from get_latest_ai_status_per_plant()).  This ensures the
+    AI result PERSISTS on screen between camera sessions instead of
+    disappearing every 60 seconds when blank sensor rows overwrite it.
+
+    Falls back to latest_df if ai_status_df is not supplied.
+    No Gemini calls are made here — pure Sheets read.
     """
-    if 'ai_status' not in latest_df.columns:
+    # Use the persistent AI dataframe when available; fall back to latest_df
+    source_df = ai_status_df if (ai_status_df is not None and not ai_status_df.empty) else latest_df
+
+    if 'ai_status' not in source_df.columns:
         st.info("📋 ai_status column not found in Sheets yet.")
         return
 
-    # Collect the most recent NON-EMPTY ai_status per plant
-    # (regular sensor rows have blank ai_status; only camera rows have values)
-    ai_df = latest_df[
-        latest_df['ai_status'].astype(str).str.strip().isin(
+    # Keep only rows with a non-empty ai_status
+    ai_df = source_df[
+        source_df['ai_status'].astype(str).str.strip().isin(
             ["", "nan", "N/A"]) == False
     ].copy()
 
@@ -547,10 +606,12 @@ def render_pi_ai_status_panel(latest_df: pd.DataFrame):
         st.info("🕒 No AI analysis yet — waiting for next camera session.")
         return
 
-    # Group by plant_id, take the most recent row per plant
-    ai_df = (ai_df.sort_values('timestamp')
-                  .groupby('plant_id').last()
-                  .reset_index())
+    # Most recent ai_status per plant (already done by get_latest_ai_status_per_plant,
+    # but guard here too in case of fallback)
+    if 'plant_id' in ai_df.columns:
+        ai_df = (ai_df.sort_values('timestamp')
+                      .groupby('plant_id').last()
+                      .reset_index())
 
     color_map = {
         "Healthy":  ("#81c784", "pi-ai-card-healthy",  "✅"),
@@ -568,26 +629,58 @@ def render_pi_ai_status_panel(latest_df: pd.DataFrame):
         if not parsed:
             continue
 
-        # Pending row
+        # Pending — camera still traveling
         if parsed.get("__pending__"):
             st.markdown(
                 f'<div class="pi-ai-card pi-ai-card-pending" style="color:#aaa;">'
-                f'🕒 P{pid}: Analyzing... (bot traveling)</div>',
+                f'🕒 Plant {pid}: Analyzing... (camera traveling to plant)</div>',
                 unsafe_allow_html=True)
             any_rendered = True
             continue
 
-        # Rendered result — use plant_id from outer loop (row_data)
-        # parsed key is 0 for single-plant format, or real pid for batch format
-        entry = parsed.get(pid) or parsed.get(0) or list(parsed.values())[0]
-        status = entry.get("status", "Unknown")
-        issue  = entry.get("issue",  "—")
-        txt_c, css_cls, icon = color_map.get(status, ("#90CAF9", "pi-ai-card-unknown", "ℹ️"))
+        status                = parsed.get('status', 'Unknown')
+        txt_c, css_cls, icon  = color_map.get(status, ("#90CAF9", "pi-ai-card-unknown", "ℹ️"))
+        sms_sent              = parsed.get('sms_sent', 'N/A')
+
+        if sms_sent == "Yes":
+            sms_html = '<span class="sms-sent-badge">📨 SMS SENT</span>'
+        elif sms_sent == "No":
+            sms_html = '<span class="sms-no-badge">SMS: N/A</span>'
+        else:
+            sms_html = ""
+
+        findings_html = (
+            f'<b style="color:#a5d6a7;">Image   :</b> {parsed["findings_image"]}<br>'
+            f'<b style="color:#a5d6a7;">Soil    :</b> {parsed["findings_soil"]} &ensp;'
+            f'<b style="color:#a5d6a7;">Temp    :</b> {parsed["findings_temp"]}<br>'
+            f'<b style="color:#a5d6a7;">Humidity:</b> {parsed["findings_humidity"]} &ensp;'
+            f'<b style="color:#a5d6a7;">pH      :</b> {parsed["findings_ph"]}'
+        )
+
+        rec = parsed.get('recommendation', 'N/A')
 
         st.markdown(
             f'<div class="pi-ai-card {css_cls}">'
-            f'<span style="font-weight:900;color:{txt_c};">{icon} P{pid}: {status}</span>'
-            f'<br><span style="color:#ccc;font-size:10px;">Issue: {issue}</span>'
+
+            # Header row: Plant ID + Status + SMS badge
+            f'<div style="font-weight:900;color:{txt_c};font-size:12px;'
+            f'margin-bottom:5px;display:flex;align-items:center;">'
+            f'{icon} Plant {pid}: {status}{sms_html}'
+            f'</div>'
+
+            # Findings
+            f'<div style="color:#ccc;font-size:10px;line-height:1.8;">'
+            f'{findings_html}'
+            f'</div>'
+
+            # Recommendation
+            f'<div style="margin-top:6px;padding-top:5px;'
+            f'border-top:1px solid rgba(255,255,255,0.08);'
+            f'font-size:10px;color:#e8f5e9;line-height:1.6;">'
+            f'<b style="color:#66bb6a;letter-spacing:0.5px;">Recommendation:</b><br>'
+            f'{rec}'
+            f'</div>'
+
             f'</div>',
             unsafe_allow_html=True)
         any_rendered = True
@@ -769,22 +862,74 @@ def get_historical_data(plant_id=None, hours=24):
 
 
 @st.cache_data(ttl=30)
+def get_latest_ai_status_per_plant() -> pd.DataFrame:
+    """
+    Returns a DataFrame with the most recent NON-BLANK ai_status per plant.
+
+    The regular 60-second sensor cycle logs rows with a blank ai_status,
+    which would overwrite the AI result if we just used .last() on all rows.
+    This function scans the full history and picks the newest row per plant
+    that actually contains a real AI result (not blank, not 'Wait for Batch...').
+
+    This is the PERSISTENCE FIX — the AI result stays visible until the
+    Pi writes a new one after the next camera session.
+    """
+    if sheet is None:
+        return pd.DataFrame()
+    df = safe_read_sheet(sheet)
+    if df.empty or 'ai_status' not in df.columns:
+        return pd.DataFrame()
+
+    # Keep only rows that have a meaningful ai_status
+    # "Wait for Batch..." is kept so Streamlit can show the pending indicator
+    ai_df = df[
+        ~df['ai_status'].astype(str).str.strip().isin(["", "nan", "N/A"])
+    ].copy()
+
+    if ai_df.empty:
+        return pd.DataFrame()
+
+    # Most recent such row per plant
+    ai_df = (ai_df.sort_values('timestamp')
+                  .groupby('plant_id').last()
+                  .reset_index())
+    return ai_df
+
+
+@st.cache_data(ttl=30)
 def get_latest_plant_image() -> dict:
     if sheet is None:
         return {}
     df = safe_read_sheet(sheet)
     if df.empty or 'image_url' not in df.columns:
         return {}
-    df = df[df['image_url'].astype(str).str.contains("id=", na=False)]
-    if df.empty:
+    df_img = df[df['image_url'].astype(str).str.contains("id=", na=False)]
+    if df_img.empty:
         return {}
-    df = df.sort_values('timestamp', ascending=False)
-    row = df.iloc[0]
+    df_img = df_img.sort_values('timestamp', ascending=False)
+    row    = df_img.iloc[0]
+    plant  = int(row['plant_id'])
+
+    # ── PERSISTENCE FIX ──────────────────────────────────────────────────────
+    # Do NOT read ai_status from this image row directly — it may be blank
+    # because newer sensor-cycle rows overwrite the "latest" for this plant.
+    # Instead, find the most recent non-blank ai_status for this plant across
+    # ALL rows, so the recommendation stays visible until the next capture.
+    ai_status_val = ""
+    if 'ai_status' in df.columns:
+        plant_ai = df[
+            (df['plant_id'] == plant) &
+            (~df['ai_status'].astype(str).str.strip().isin(["", "nan", "N/A"]))
+        ].sort_values('timestamp', ascending=False)
+        if not plant_ai.empty:
+            ai_status_val = str(plant_ai.iloc[0]['ai_status']).strip()
+    # ─────────────────────────────────────────────────────────────────────────
+
     return {
         "url":       gdrive_direct_url(str(row['image_url']).strip()),
-        "plant_id":  int(row['plant_id']),
+        "plant_id":  plant,
         "timestamp": pd.to_datetime(row['timestamp']).strftime("%b %d, %Y · %I:%M %p"),
-        "ai_status": str(row.get('ai_status', '')).strip() if 'ai_status' in row else "",
+        "ai_status": ai_status_val,
     }
 
 
@@ -906,7 +1051,6 @@ if page == "DASHBOARD":
         if img_data.get("url"):
             file_id = _get_file_id_from_url(img_data["url"])
 
-            # Try private download first, fall back to public
             pil_img = fetch_drive_image_private(file_id) if file_id else None
             if pil_img is None:
                 pil_img = fetch_drive_image(img_data["url"])
@@ -922,7 +1066,7 @@ if page == "DASHBOARD":
                     'Check Drive sharing permissions or credentials.json.</div>'
                     '</div>', unsafe_allow_html=True)
 
-            # Show the Pi-side ai_status for the latest captured plant
+            # Show Pi-side ai_status for the latest captured plant
             latest_ai = img_data.get("ai_status", "")
             if latest_ai and latest_ai not in ("", "nan", "N/A"):
                 if latest_ai == "Wait for Batch...":
@@ -932,33 +1076,44 @@ if page == "DASHBOARD":
                         '</div>', unsafe_allow_html=True)
                 else:
                     parsed_latest = parse_ai_status_column(latest_ai)
-                    entry = (parsed_latest.get(img_data.get("plant_id", 0))
-                             or parsed_latest.get(0)
-                             or (list(parsed_latest.values())[0] if parsed_latest else None))
-                    if entry and not parsed_latest.get("__pending__"):
-                        status = entry.get("status", "Unknown")
-                        issue  = entry.get("issue",  "—")
-                        color_map = {
+                    if parsed_latest and not parsed_latest.get("__pending__"):
+                        status = parsed_latest.get('status', 'Unknown')
+                        rec    = parsed_latest.get('recommendation', 'N/A')
+                        color_map_inline = {
                             "Healthy":  ("#81c784", "#2e7d32", "✅"),
                             "Warning":  ("#ffb74d", "#e65100", "⚠️"),
                             "Critical": ("#ef9a9a", "#b71c1c", "🔴"),
                         }
-                        txt_c, bg_c, icon = color_map.get(status, ("#90CAF9", "#1a237e", "ℹ️"))
+                        txt_c, bg_c, icon = color_map_inline.get(
+                            status, ("#90CAF9", "#1a237e", "ℹ️"))
                         r_val = int(bg_c[1:3], 16)
                         g_val = int(bg_c[3:5], 16)
                         b_val = int(bg_c[5:7], 16)
+                        sms_sent  = parsed_latest.get('sms_sent', 'N/A')
+                        sms_badge = (
+                            '<span class="sms-sent-badge">📨 SMS SENT</span>'
+                            if sms_sent == "Yes" else ""
+                        )
                         st.markdown(
                             f'<div style="background:rgba({r_val},{g_val},{b_val},0.18);'
                             f'border:1px solid {txt_c};border-radius:10px;'
                             f'padding:10px 14px;margin-top:8px;">'
+
                             f'<div style="font-size:11px;font-weight:900;color:{txt_c};'
                             f'letter-spacing:1px;margin-bottom:4px;">'
-                            f'{icon} Pi AI — Plant {img_data.get("plant_id","")}'
+                            f'{icon} AI Analysis — Plant {img_data.get("plant_id","")}'
+                            f'&nbsp;{sms_badge}'
                             f'<span style="font-size:9px;color:#888;margin-left:6px;font-weight:400;">'
                             f'{img_data.get("timestamp","")}</span></div>'
-                            f'<div style="font-size:11px;color:#e8f5e9;line-height:1.8;">'
-                            f'<b style="color:#a5d6a7;">Status :</b> {status}<br>'
-                            f'<b style="color:#a5d6a7;">Issue  :</b> {issue}'
+
+                            f'<div style="font-size:10px;color:#e8f5e9;line-height:1.8;">'
+                            f'<b style="color:#a5d6a7;">Status        :</b> {status}<br>'
+                            f'<b style="color:#a5d6a7;">Image         :</b> {parsed_latest.get("findings_image","N/A")}<br>'
+                            f'<b style="color:#a5d6a7;">Soil Moisture :</b> {parsed_latest.get("findings_soil","N/A")}<br>'
+                            f'<b style="color:#a5d6a7;">Temperature   :</b> {parsed_latest.get("findings_temp","N/A")}<br>'
+                            f'<b style="color:#a5d6a7;">Humidity      :</b> {parsed_latest.get("findings_humidity","N/A")}<br>'
+                            f'<b style="color:#a5d6a7;">pH Level      :</b> {parsed_latest.get("findings_ph","N/A")}<br>'
+                            f'<b style="color:#a5d6a7;">Recommendation:</b> {rec}'
                             f'</div></div>',
                             unsafe_allow_html=True)
 
@@ -969,7 +1124,7 @@ if page == "DASHBOARD":
                 f'Captured at '
                 f'<span class="sched-badge">7:00 AM</span>'
                 f'<span class="sched-badge">12:00 NN</span>'
-                f'<span class="sched-badge">4:09 PM</span></div>'
+                f'<span class="sched-badge">5:00 PM</span></div>'
                 f'<a href="{DRIVE_FOLDER_URL}" target="_blank" class="drive-link">'
                 f'☁️ View all in Drive ↗</a>',
                 unsafe_allow_html=True)
@@ -982,7 +1137,7 @@ if page == "DASHBOARD":
                 'Captures at '
                 '<span class="sched-badge">7:00 AM</span>'
                 '<span class="sched-badge">12:00 NN</span>'
-                '<span class="sched-badge">4:09 PM</span></div>'
+                '<span class="sched-badge">5:00 PM</span></div>'
                 '</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -995,14 +1150,16 @@ if page == "DASHBOARD":
                 f'margin-bottom:6px;">🔄 {last_ts.strftime("%H:%M:%S")}</div>',
                 unsafe_allow_html=True)
 
-        # ── 🤖 AI Health Status (Pi-written, read from Sheets) ─
+        # 🤖 AI Health Status — reads Pi-written ai_status from Sheets
+        # ai_status_df is fetched separately so the result persists between
+        # camera sessions (blank sensor-cycle rows do not overwrite it).
         st.markdown('<div class="section-title">🤖 AI Health Status</div>',
                     unsafe_allow_html=True)
 
-        # FIXED: render_pi_ai_status_panel reads ai_status column — no Gemini calls
-        render_pi_ai_status_panel(latest)
+        ai_status_df = get_latest_ai_status_per_plant()
+        render_pi_ai_status_panel(latest, ai_status_df)
 
-        # ── Anomaly model status ───────────────────────────────
+        # ── Anomaly model (sklearn, if available) ─────────────
         p1 = latest[latest['plant_id'] == 1]
         if not p1.empty and model and scaler:
             try:
@@ -1104,7 +1261,7 @@ elif page == "ANALYSIS":
         soil_rows = []
         for _, row in latest.iterrows():
             soil_rows.append({
-                "Plant": f"P{int(row['plant_id'])}",
+                "Plant":  f"P{int(row['plant_id'])}",
                 "Soil %": float(row['soil_moisture']),
                 "Status": "Dry" if float(row['soil_moisture']) < SOIL_DRY
                           else ("Wet" if float(row['soil_moisture']) > SOIL_WET else "OK")
@@ -1191,25 +1348,49 @@ elif page == "LOGS":
                 return "🌱 Soil"
             return "Normal"
 
-        logs['event'] = logs.apply(classify, axis=1)
-        cols = ['timestamp', 'plant_id', 'temp_c', 'humidity', 'soil_moisture', 'ph', 'event']
-        cfg  = {
+        def extract_sms_sent(ai_str):
+            """Pull the SMS Sent flag out of the ai_status cell for the log table."""
+            if not ai_str or str(ai_str).strip() in ("", "nan", "N/A", "Wait for Batch..."):
+                return ""
+            m = re.search(r'SMS Sent:\s*(Yes|No)', str(ai_str), re.IGNORECASE)
+            return "📨 Yes" if (m and m.group(1).lower() == "yes") else ""
+
+        def extract_status_only(ai_str):
+            """Return just the Status word for a compact log column."""
+            if not ai_str or str(ai_str).strip() in ("", "nan", "N/A"):
+                return ""
+            if str(ai_str).strip() == "Wait for Batch...":
+                return "⏳ Pending"
+            m = re.search(r'Status:\s*(Healthy|Warning|Critical)', str(ai_str), re.IGNORECASE)
+            if m:
+                s = m.group(1).capitalize()
+                icons = {"Healthy": "✅", "Warning": "⚠️", "Critical": "🔴"}
+                return f"{icons.get(s, '')} {s}"
+            return str(ai_str)[:40]
+
+        logs['event']      = logs.apply(classify, axis=1)
+        logs['ai_result']  = logs['ai_status'].apply(extract_status_only) if 'ai_status' in logs.columns else ""
+        logs['sms_status'] = logs['ai_status'].apply(extract_sms_sent)    if 'ai_status' in logs.columns else ""
+
+        display_cols = ['timestamp', 'plant_id', 'temp_c', 'humidity',
+                        'soil_moisture', 'ph', 'event', 'ai_result', 'sms_status']
+        if 'image_url' in logs.columns:
+            display_cols.insert(-3, 'image_url')
+
+        cfg = {
             "timestamp":     st.column_config.TextColumn("Time"),
             "plant_id":      st.column_config.NumberColumn("Plant"),
             "temp_c":        st.column_config.NumberColumn("Temp (°C)"),
             "humidity":      st.column_config.NumberColumn("Hum (%)"),
             "soil_moisture": st.column_config.NumberColumn("Soil %"),
             "ph":            st.column_config.NumberColumn("pH"),
-            "event":         st.column_config.TextColumn("Event"),
+            "event":         st.column_config.TextColumn("Sensor Event"),
+            "ai_result":     st.column_config.TextColumn("🤖 AI Status", width="small"),
+            "sms_status":    st.column_config.TextColumn("📨 SMS", width="small"),
+            "image_url":     st.column_config.LinkColumn("📸 Image"),
         }
-        if 'image_url' in logs.columns:
-            cols.insert(-1, 'image_url')
-            cfg['image_url'] = st.column_config.LinkColumn("📸 Image")
-        if 'ai_status' in logs.columns:
-            cols.insert(-1, 'ai_status')
-            cfg['ai_status'] = st.column_config.TextColumn("🤖 AI Status", width="medium")
 
-        display_cols = [c for c in cols if c in logs.columns]
+        display_cols = [c for c in display_cols if c in logs.columns]
         st.dataframe(
             logs[display_cols].sort_values('timestamp', ascending=False),
             column_config=cfg,
