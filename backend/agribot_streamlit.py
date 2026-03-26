@@ -68,7 +68,7 @@ st.set_page_config(
     page_title="AgriBot-AI | Dashboard",
     page_icon=_page_icon,
     layout="wide",
-    initial_sidebar_state="unexpanded",
+    initial_sidebar_state="expanded"
 )
 
 # ============================================================
