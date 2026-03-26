@@ -19,9 +19,14 @@ from streamlit_autorefresh import st_autorefresh
 # ============================================================
 # NOTE: Gemini is NOT called from Streamlit.
 # The Pi runs Gemini, writes the full structured result
-# (Status + Findings + Recommendation + SMS Sent flag) to the
-# ai_status column in Google Sheets.
+# (per-plant blocks + GREENHOUSE_SUMMARY at plant_id=0)
+# to the ai_status column in Google Sheets.
 # Streamlit reads that column — zero Gemini quota used here.
+#
+# SUMMARY CHANGE: The AI Health Status panel now shows ONE
+# consolidated greenhouse summary (plant_id=0 row) instead of
+# per-plant cards. This gives the operator an at-a-glance
+# view of overall greenhouse health + top recommendation.
 # ============================================================
 try:
     from googleapiclient.discovery import build
@@ -30,9 +35,6 @@ try:
 except ImportError:
     DRIVE_API_OK = False
 
-# ============================================================
-# PATHS
-# ============================================================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH  = os.path.join(SCRIPT_DIR, "agribotailogo.png")
 BG_PATH    = os.path.join(SCRIPT_DIR, "background.jpg")
@@ -58,7 +60,6 @@ DRIVE_FOLDER_ID  = "1g6Tg0UZSuFrJchPyRJLgcJmM_X4Ggatm"
 DRIVE_FOLDER_URL = f"https://drive.google.com/drive/folders/{DRIVE_FOLDER_ID}"
 STREAMLIT_URL    = "https://agribotai.streamlit.app"
 
-# ── Tab favicon ──────────────────────────────────────────────
 _page_icon = "🌱"
 if ACTUAL_LOGO:
     try:
@@ -73,9 +74,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ============================================================
-# CSS
-# ============================================================
 OPTIMIZED_CSS = """
 <style>
 :root {
@@ -307,16 +305,24 @@ div[data-testid="stMetricValue"] {
     border-radius: 8px !important; max-height: 260px !important;
     object-fit: cover !important; width: 100% !important;
 }
-/* AI plant status cards */
-.pi-ai-card {
-    border-radius: 9px; padding: 8px 11px; margin: 4px 0;
-    font-size: 11px; line-height: 1.7;
+/* Greenhouse summary card */
+.gh-summary-card {
+    border-radius: 11px; padding: 12px 14px; margin: 4px 0 8px;
+    font-size: 11px; line-height: 1.8;
 }
-.pi-ai-card-healthy  { background: rgba(46,125,50,0.18);  border: 1px solid #81c784; }
-.pi-ai-card-warning  { background: rgba(230,81,0,0.18);   border: 1px solid #ffb74d; }
-.pi-ai-card-critical { background: rgba(183,28,28,0.18);  border: 1px solid #ef9a9a; }
-.pi-ai-card-pending  { background: rgba(33,33,33,0.35);   border: 1px solid #555; }
-.pi-ai-card-unknown  { background: rgba(21,101,192,0.12); border: 1px solid #90CAF9; }
+.gh-summary-healthy  { background: rgba(46,125,50,0.18);  border: 1px solid #81c784; }
+.gh-summary-warning  { background: rgba(230,81,0,0.18);   border: 1px solid #ffb74d; }
+.gh-summary-critical { background: rgba(183,28,28,0.18);  border: 1px solid #ef9a9a; }
+.gh-summary-pending  { background: rgba(33,33,33,0.35);   border: 1px solid #555; }
+.gh-summary-unknown  { background: rgba(21,101,192,0.12); border: 1px solid #90CAF9; }
+/* plant tally pills */
+.tally-pill {
+    display: inline-block; border-radius: 20px; padding: 2px 10px;
+    font-size: 10px; font-weight: 700; margin: 0 3px; letter-spacing: 0.5px;
+}
+.tally-healthy  { background: rgba(46,125,50,0.3);  border:1px solid #81c784; color:#81c784; }
+.tally-warning  { background: rgba(230,81,0,0.3);   border:1px solid #ffb74d; color:#ffb74d; }
+.tally-critical { background: rgba(183,28,28,0.3);  border:1px solid #ef9a9a; color:#ef9a9a; }
 /* SMS sent badge */
 .sms-sent-badge {
     display: inline-block; background: rgba(21,101,192,0.25);
@@ -436,7 +442,7 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
 
 
 # ============================================================
-# DRIVE IMAGE HELPERS (private download via service account)
+# DRIVE IMAGE HELPERS
 # ============================================================
 def _get_drive_service_private():
     if not DRIVE_API_OK:
@@ -488,205 +494,186 @@ def fetch_drive_image_private(file_id: str):
 
 
 # ============================================================
-# AI STATUS HELPERS — parse Pi-written result from Sheets
+# GREENHOUSE SUMMARY PARSER
+# Reads the plant_id=0 row written by the Pi after every batch
 # ============================================================
-def parse_ai_status_column(ai_status_str: str) -> dict:
+def parse_greenhouse_summary_from_sheets(ai_status_str: str) -> dict:
     """
-    Parse the full structured ai_status string written by the Pi.
+    Parses the consolidated GREENHOUSE_SUMMARY block stored at plant_id=0.
 
-    Expected format in Sheets cell:
-        Status: Warning
-        Findings:
-          Image         : Slight wilting observed
-          Soil Moisture : Low (45 %)
-          Temperature   : Normal (28 °C)
-          Humidity      : Low (40 %)
-          pH Level      : Normal (6.5)
-        Recommendation:
-          Increase irrigation to raise soil moisture...
+    Expected Sheets format:
+        Overall Status: Warning
+        Plants Healthy: 5
+        Plants Warning: 2
+        Plants Critical: 1
+        Key Issues:
+          - Soil moisture low in plants 3 and 6
+          - pH slightly elevated across all plants
+        Overall Recommendation:
+          Increase irrigation frequency for plants 3 and 6 immediately...
         SMS Sent: Yes
 
-    Also handles:
-      - "Wait for Batch..."     → pending state
-      - Legacy short format     → "Healthy | None detected"
-      - Unknown / raw fallback  → shows as-is
-
-    Returns a flat dict:
+    Returns:
         {
-          'status'           : str,
-          'findings_image'   : str,
-          'findings_soil'    : str,
-          'findings_temp'    : str,
-          'findings_humidity': str,
-          'findings_ph'      : str,
-          'recommendation'   : str,
-          'sms_sent'         : "Yes" | "No" | "N/A",
+          'overall_status'  : str,
+          'plants_healthy'  : int,
+          'plants_warning'  : int,
+          'plants_critical' : int,
+          'key_issues'      : [str, ...],
+          'recommendation'  : str,
+          'sms_sent'        : "Yes" | "No" | "N/A",
+          'timestamp'       : str,   # filled in by caller
         }
-    or  {'__pending__': True}
-    or  {}  if empty / unparseable
+    or {} if unparseable / {'__pending__': True} if wait state.
     """
-    if not ai_status_str or str(ai_status_str).strip() in ("", "N/A", "nan"):
+    if not ai_status_str or str(ai_status_str).strip() in ("", "nan", "N/A"):
         return {}
 
     s = str(ai_status_str).strip()
 
-    # ── Pending placeholder ──────────────────────────────────
     if s == "Wait for Batch...":
         return {"__pending__": True}
 
-    result = {}
-
-    # ── Status ───────────────────────────────────────────────
-    sm = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
-    result['status'] = sm.group(1).strip().capitalize() if sm else "Unknown"
-
-    # ── Findings ─────────────────────────────────────────────
-    def _find(pattern):
+    def _find(pattern, default="N/A"):
         m = re.search(pattern, s, re.IGNORECASE)
-        return m.group(1).strip() if m else "N/A"
+        return m.group(1).strip() if m else default
 
-    result['findings_image']    = _find(r'Image\s*:\s*(.+)')
-    result['findings_soil']     = _find(r'Soil Moisture\s*:\s*(.+)')
-    result['findings_temp']     = _find(r'Temperature\s*:\s*(.+)')
-    result['findings_humidity'] = _find(r'Humidity\s*:\s*(.+)')
-    result['findings_ph']       = _find(r'pH Level\s*:\s*(.+)')
+    result = {}
+    result['overall_status']  = _find(r'Overall Status:\s*(Healthy|Warning|Critical|Unknown)', "Unknown")
+    result['plants_healthy']  = int(_find(r'Plants Healthy:\s*(\d+)', "0"))
+    result['plants_warning']  = int(_find(r'Plants Warning:\s*(\d+)', "0"))
+    result['plants_critical'] = int(_find(r'Plants Critical:\s*(\d+)', "0"))
 
-    # ── Recommendation (multi-line) ───────────────────────────
-    rec_m = re.search(
-        r'Recommendation:\s*\n([\s\S]+?)(?=\nSMS Sent:|\Z)', s)
+    # Key Issues bullet list
+    issues_m = re.search(r'Key Issues:\s*\n([\s\S]+?)(?=Overall Recommendation:|\Z)', s)
+    key_issues = []
+    if issues_m:
+        for line in issues_m.group(1).splitlines():
+            line = line.strip().lstrip('- ').strip()
+            if line and line.lower() != "none":
+                key_issues.append(line)
+    result['key_issues'] = key_issues
+
+    # Overall Recommendation (multi-line)
+    rec_m = re.search(r'Overall Recommendation:\s*\n([\s\S]+?)(?=\nSMS Sent:|\Z)', s)
     if rec_m:
-        # Strip leading spaces from each line
         rec_lines = [ln.lstrip() for ln in rec_m.group(1).splitlines() if ln.strip()]
         result['recommendation'] = " ".join(rec_lines)
     else:
         result['recommendation'] = "N/A"
 
-    # ── SMS Sent flag ────────────────────────────────────────
     sms_m = re.search(r'SMS Sent:\s*(Yes|No)', s, re.IGNORECASE)
     result['sms_sent'] = sms_m.group(1).capitalize() if sms_m else "N/A"
-
-    # ── Legacy fallback: old short format "Status | Issue" ───
-    if result['status'] == "Unknown" and '|' in s and '\n' not in s:
-        parts = s.split('|', 1)
-        leg_status = parts[0].strip().capitalize()
-        if leg_status in ("Healthy", "Warning", "Critical"):
-            result['status']         = leg_status
-            result['recommendation'] = parts[1].strip() if len(parts) > 1 else "N/A"
 
     return result
 
 
-def render_pi_ai_status_panel(latest_df: pd.DataFrame,
-                               ai_status_df: pd.DataFrame = None):
+def render_greenhouse_summary_panel(df: pd.DataFrame):
     """
-    Renders the 🤖 AI Health Status panel on the dashboard right column.
+    Renders the consolidated 🏡 Greenhouse AI Summary panel.
 
-    Reads ai_status from ai_status_df — the most recent NON-BLANK ai_status
-    row per plant (from get_latest_ai_status_per_plant()).  This ensures the
-    AI result PERSISTS on screen between camera sessions instead of
-    disappearing every 60 seconds when blank sensor rows overwrite it.
-
-    Falls back to latest_df if ai_status_df is not supplied.
-    No Gemini calls are made here — pure Sheets read.
+    Reads the most recent plant_id=0 row (written by Pi after every batch).
+    Shows: overall status, plant tally, key issues, and the operator recommendation.
+    Falls back gracefully if no summary row exists yet.
     """
-    # Use the persistent AI dataframe when available; fall back to latest_df
-    source_df = ai_status_df if (ai_status_df is not None and not ai_status_df.empty) else latest_df
-
-    if 'ai_status' not in source_df.columns:
-        st.info("📋 ai_status column not found in Sheets yet.")
+    if df.empty or 'ai_status' not in df.columns:
+        st.info("📋 No AI summary yet — waiting for next camera session.")
         return
 
-    # Keep only rows with a non-empty ai_status
-    ai_df = source_df[
-        source_df['ai_status'].astype(str).str.strip().isin(
-            ["", "nan", "N/A"]) == False
-    ].copy()
+    # Isolate plant_id=0 rows (greenhouse summary rows)
+    summary_df = df[df['plant_id'] == 0].copy()
 
-    if ai_df.empty:
-        st.info("🕒 No AI analysis yet — waiting for next camera session.")
+    if summary_df.empty:
+        # No summary row exists yet — show a helpful note
+        st.info("🕒 Greenhouse summary not available yet.\n\nThe Pi will write a consolidated summary after the next scheduled camera session (7:00 AM, 12:00 NN, or 5:00 PM).")
         return
 
-    # Most recent ai_status per plant (already done by get_latest_ai_status_per_plant,
-    # but guard here too in case of fallback)
-    if 'plant_id' in ai_df.columns:
-        ai_df = (ai_df.sort_values('timestamp')
-                      .groupby('plant_id').last()
-                      .reset_index())
+    # Most recent summary row
+    latest_summary_row = summary_df.sort_values('timestamp').iloc[-1]
+    raw_ai = str(latest_summary_row['ai_status']).strip()
+    ts     = pd.to_datetime(latest_summary_row['timestamp']).strftime("%b %d, %Y · %I:%M %p")
 
-    color_map = {
-        "Healthy":  ("#81c784", "pi-ai-card-healthy",  "✅"),
-        "Warning":  ("#ffb74d", "pi-ai-card-warning",  "⚠️"),
-        "Critical": ("#ef9a9a", "pi-ai-card-critical", "🔴"),
-        "Unknown":  ("#90CAF9", "pi-ai-card-unknown",  "ℹ️"),
-    }
+    parsed = parse_greenhouse_summary_from_sheets(raw_ai)
 
-    any_rendered = False
-    for _, row_data in ai_df.iterrows():
-        pid        = int(row_data['plant_id'])
-        raw_status = str(row_data['ai_status']).strip()
-        parsed     = parse_ai_status_column(raw_status)
+    if not parsed:
+        st.info("🕒 No AI summary yet — waiting for next camera session.")
+        return
 
-        if not parsed:
-            continue
-
-        # Pending — camera still traveling
-        if parsed.get("__pending__"):
-            st.markdown(
-                f'<div class="pi-ai-card pi-ai-card-pending" style="color:#aaa;">'
-                f'🕒 Plant {pid}: Analyzing... (camera traveling to plant)</div>',
-                unsafe_allow_html=True)
-            any_rendered = True
-            continue
-
-        status                = parsed.get('status', 'Unknown')
-        txt_c, css_cls, icon  = color_map.get(status, ("#90CAF9", "pi-ai-card-unknown", "ℹ️"))
-        sms_sent              = parsed.get('sms_sent', 'N/A')
-
-        if sms_sent == "Yes":
-            sms_html = '<span class="sms-sent-badge">📨 SMS SENT</span>'
-        elif sms_sent == "No":
-            sms_html = '<span class="sms-no-badge">SMS: N/A</span>'
-        else:
-            sms_html = ""
-
-        findings_html = (
-            f'<b style="color:#a5d6a7;">Image   :</b> {parsed["findings_image"]}<br>'
-            f'<b style="color:#a5d6a7;">Soil    :</b> {parsed["findings_soil"]} &ensp;'
-            f'<b style="color:#a5d6a7;">Temp    :</b> {parsed["findings_temp"]}<br>'
-            f'<b style="color:#a5d6a7;">Humidity:</b> {parsed["findings_humidity"]} &ensp;'
-            f'<b style="color:#a5d6a7;">pH      :</b> {parsed["findings_ph"]}'
-        )
-
-        rec = parsed.get('recommendation', 'N/A')
-
+    # Pending state
+    if parsed.get("__pending__"):
         st.markdown(
-            f'<div class="pi-ai-card {css_cls}">'
+            '<div class="gh-summary-card gh-summary-pending" style="color:#aaa;">'
+            '🕒 AI analyzing batch... greenhouse summary will appear after all plants are captured.'
+            '</div>', unsafe_allow_html=True)
+        return
 
-            # Header row: Plant ID + Status + SMS badge
-            f'<div style="font-weight:900;color:{txt_c};font-size:12px;'
-            f'margin-bottom:5px;display:flex;align-items:center;">'
-            f'{icon} Plant {pid}: {status}{sms_html}'
-            f'</div>'
+    status = parsed.get('overall_status', 'Unknown')
+    color_map = {
+        "Healthy":  ("#81c784", "gh-summary-healthy",  "✅"),
+        "Warning":  ("#ffb74d", "gh-summary-warning",  "⚠️"),
+        "Critical": ("#ef9a9a", "gh-summary-critical", "🔴"),
+        "Unknown":  ("#90CAF9", "gh-summary-unknown",  "ℹ️"),
+    }
+    txt_c, css_cls, icon = color_map.get(status, ("#90CAF9", "gh-summary-unknown", "ℹ️"))
 
-            # Findings
-            f'<div style="color:#ccc;font-size:10px;line-height:1.8;">'
-            f'{findings_html}'
-            f'</div>'
+    sms_sent = parsed.get('sms_sent', 'N/A')
+    sms_html = (
+        '<span class="sms-sent-badge">📨 SMS SENT</span>'
+        if sms_sent == "Yes" else
+        '<span class="sms-no-badge">SMS: N/A</span>'
+    )
 
-            # Recommendation
-            f'<div style="margin-top:6px;padding-top:5px;'
-            f'border-top:1px solid rgba(255,255,255,0.08);'
-            f'font-size:10px;color:#e8f5e9;line-height:1.6;">'
-            f'<b style="color:#66bb6a;letter-spacing:0.5px;">Recommendation:</b><br>'
-            f'{rec}'
-            f'</div>'
+    h = parsed['plants_healthy']
+    w = parsed['plants_warning']
+    c = parsed['plants_critical']
 
-            f'</div>',
-            unsafe_allow_html=True)
-        any_rendered = True
+    tally_html = (
+        f'<span class="tally-pill tally-healthy">✅ {h} Healthy</span>'
+        f'<span class="tally-pill tally-warning">⚠️ {w} Warning</span>'
+        f'<span class="tally-pill tally-critical">🔴 {c} Critical</span>'
+    )
 
-    if not any_rendered:
-        st.info("🕒 No AI results yet — waiting for camera session.")
+    issues = parsed.get('key_issues', [])
+    if issues:
+        issues_html = "".join(
+            f'<div style="color:#ffcc80;font-size:10px;margin:1px 0;">• {i}</div>'
+            for i in issues
+        )
+    else:
+        issues_html = '<div style="color:#81c784;font-size:10px;">• No major issues detected</div>'
+
+    rec = parsed.get('recommendation', 'N/A')
+
+    st.markdown(
+        f'<div class="gh-summary-card {css_cls}">'
+
+        # Header
+        f'<div style="font-weight:900;color:{txt_c};font-size:13px;'
+        f'margin-bottom:7px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
+        f'{icon} Overall Greenhouse Status: <b>{status}</b>{sms_html}'
+        f'<span style="font-size:9px;color:#888;font-weight:400;margin-left:6px;">{ts}</span>'
+        f'</div>'
+
+        # Plant tally pills
+        f'<div style="margin-bottom:8px;">{tally_html}</div>'
+
+        # Key Issues
+        f'<div style="margin-bottom:8px;padding-bottom:7px;'
+        f'border-bottom:1px solid rgba(255,255,255,0.08);">'
+        f'<div style="font-size:10px;font-weight:700;color:#a5d6a7;'
+        f'letter-spacing:0.5px;margin-bottom:3px;">KEY ISSUES</div>'
+        f'{issues_html}'
+        f'</div>'
+
+        # Overall Recommendation
+        f'<div>'
+        f'<div style="font-size:10px;font-weight:700;color:#66bb6a;'
+        f'letter-spacing:0.5px;margin-bottom:3px;">OVERALL RECOMMENDATION</div>'
+        f'<div style="font-size:10px;color:#e8f5e9;line-height:1.7;">{rec}</div>'
+        f'</div>'
+
+        f'</div>',
+        unsafe_allow_html=True)
 
 
 # ============================================================
@@ -781,10 +768,6 @@ def show_login():
                 else:
                     st.error("Invalid email or password")
 
-        st.markdown(
-            '<div style="text-align:center;margin-top:10px;">'
-            '<span style="font-size:11px;color:#388e3c;">← </span>'
-            '</div>', unsafe_allow_html=True)
         if st.button("← Back to Landing", use_container_width=True, key="back_btn"):
             st.session_state.page = "landing"
             st.rerun()
@@ -840,11 +823,14 @@ def get_sheet():
 
 @st.cache_data(ttl=30)
 def get_latest_readings():
+    """Latest sensor readings per plant (excludes plant_id=0 summary rows)."""
     if sheet is None:
         return pd.DataFrame()
     df = safe_read_sheet(sheet)
     if df.empty:
         return df
+    # Exclude plant_id=0 (greenhouse summary rows)
+    df = df[df['plant_id'] > 0]
     return df.sort_values('timestamp').groupby('plant_id').last().reset_index()
 
 
@@ -855,6 +841,8 @@ def get_historical_data(plant_id=None, hours=24):
     df = safe_read_sheet(sheet)
     if df.empty:
         return df
+    # Exclude summary rows
+    df = df[df['plant_id'] > 0]
     df = df[df['timestamp'] >= datetime.now() - timedelta(hours=hours)]
     if plant_id is not None:
         df = df[df['plant_id'] == plant_id]
@@ -862,38 +850,20 @@ def get_historical_data(plant_id=None, hours=24):
 
 
 @st.cache_data(ttl=30)
-def get_latest_ai_status_per_plant() -> pd.DataFrame:
+def get_greenhouse_summary_row() -> pd.DataFrame:
     """
-    Returns a DataFrame with the most recent NON-BLANK ai_status per plant.
-
-    The regular 60-second sensor cycle logs rows with a blank ai_status,
-    which would overwrite the AI result if we just used .last() on all rows.
-    This function scans the full history and picks the newest row per plant
-    that actually contains a real AI result (not blank, not 'Wait for Batch...').
-
-    This is the PERSISTENCE FIX — the AI result stays visible until the
-    Pi writes a new one after the next camera session.
+    Returns the most recent plant_id=0 row (greenhouse summary) from Sheets.
+    This is the consolidated AI result written by the Pi after each batch.
     """
     if sheet is None:
         return pd.DataFrame()
     df = safe_read_sheet(sheet)
     if df.empty or 'ai_status' not in df.columns:
         return pd.DataFrame()
-
-    # Keep only rows that have a meaningful ai_status
-    # "Wait for Batch..." is kept so Streamlit can show the pending indicator
-    ai_df = df[
-        ~df['ai_status'].astype(str).str.strip().isin(["", "nan", "N/A"])
-    ].copy()
-
-    if ai_df.empty:
+    summary_df = df[df['plant_id'] == 0].copy()
+    if summary_df.empty:
         return pd.DataFrame()
-
-    # Most recent such row per plant
-    ai_df = (ai_df.sort_values('timestamp')
-                  .groupby('plant_id').last()
-                  .reset_index())
-    return ai_df
+    return summary_df.sort_values('timestamp').tail(1)
 
 
 @st.cache_data(ttl=30)
@@ -903,33 +873,17 @@ def get_latest_plant_image() -> dict:
     df = safe_read_sheet(sheet)
     if df.empty or 'image_url' not in df.columns:
         return {}
+    df = df[df['plant_id'] > 0]  # Exclude summary rows
     df_img = df[df['image_url'].astype(str).str.contains("id=", na=False)]
     if df_img.empty:
         return {}
     df_img = df_img.sort_values('timestamp', ascending=False)
     row    = df_img.iloc[0]
     plant  = int(row['plant_id'])
-
-    # ── PERSISTENCE FIX ──────────────────────────────────────────────────────
-    # Do NOT read ai_status from this image row directly — it may be blank
-    # because newer sensor-cycle rows overwrite the "latest" for this plant.
-    # Instead, find the most recent non-blank ai_status for this plant across
-    # ALL rows, so the recommendation stays visible until the next capture.
-    ai_status_val = ""
-    if 'ai_status' in df.columns:
-        plant_ai = df[
-            (df['plant_id'] == plant) &
-            (~df['ai_status'].astype(str).str.strip().isin(["", "nan", "N/A"]))
-        ].sort_values('timestamp', ascending=False)
-        if not plant_ai.empty:
-            ai_status_val = str(plant_ai.iloc[0]['ai_status']).strip()
-    # ─────────────────────────────────────────────────────────────────────────
-
     return {
         "url":       gdrive_direct_url(str(row['image_url']).strip()),
         "plant_id":  plant,
         "timestamp": pd.to_datetime(row['timestamp']).strftime("%b %d, %Y · %I:%M %p"),
-        "ai_status": ai_status_val,
     }
 
 
@@ -1050,7 +1004,6 @@ if page == "DASHBOARD":
 
         if img_data.get("url"):
             file_id = _get_file_id_from_url(img_data["url"])
-
             pil_img = fetch_drive_image_private(file_id) if file_id else None
             if pil_img is None:
                 pil_img = fetch_drive_image(img_data["url"])
@@ -1065,57 +1018,6 @@ if page == "DASHBOARD":
                     'Image could not be loaded.<br>'
                     'Check Drive sharing permissions or credentials.json.</div>'
                     '</div>', unsafe_allow_html=True)
-
-            # Show Pi-side ai_status for the latest captured plant
-            latest_ai = img_data.get("ai_status", "")
-            if latest_ai and latest_ai not in ("", "nan", "N/A"):
-                if latest_ai == "Wait for Batch...":
-                    st.markdown(
-                        '<div class="pi-ai-card pi-ai-card-pending" style="color:#aaa;margin-top:6px;">'
-                        '🕒 AI analyzing batch... result will appear after all plants are captured.'
-                        '</div>', unsafe_allow_html=True)
-                else:
-                    parsed_latest = parse_ai_status_column(latest_ai)
-                    if parsed_latest and not parsed_latest.get("__pending__"):
-                        status = parsed_latest.get('status', 'Unknown')
-                        rec    = parsed_latest.get('recommendation', 'N/A')
-                        color_map_inline = {
-                            "Healthy":  ("#81c784", "#2e7d32", "✅"),
-                            "Warning":  ("#ffb74d", "#e65100", "⚠️"),
-                            "Critical": ("#ef9a9a", "#b71c1c", "🔴"),
-                        }
-                        txt_c, bg_c, icon = color_map_inline.get(
-                            status, ("#90CAF9", "#1a237e", "ℹ️"))
-                        r_val = int(bg_c[1:3], 16)
-                        g_val = int(bg_c[3:5], 16)
-                        b_val = int(bg_c[5:7], 16)
-                        sms_sent  = parsed_latest.get('sms_sent', 'N/A')
-                        sms_badge = (
-                            '<span class="sms-sent-badge">📨 SMS SENT</span>'
-                            if sms_sent == "Yes" else ""
-                        )
-                        st.markdown(
-                            f'<div style="background:rgba({r_val},{g_val},{b_val},0.18);'
-                            f'border:1px solid {txt_c};border-radius:10px;'
-                            f'padding:10px 14px;margin-top:8px;">'
-
-                            f'<div style="font-size:11px;font-weight:900;color:{txt_c};'
-                            f'letter-spacing:1px;margin-bottom:4px;">'
-                            f'{icon} AI Analysis — Plant {img_data.get("plant_id","")}'
-                            f'&nbsp;{sms_badge}'
-                            f'<span style="font-size:9px;color:#888;margin-left:6px;font-weight:400;">'
-                            f'{img_data.get("timestamp","")}</span></div>'
-
-                            f'<div style="font-size:10px;color:#e8f5e9;line-height:1.8;">'
-                            f'<b style="color:#a5d6a7;">Status        :</b> {status}<br>'
-                            f'<b style="color:#a5d6a7;">Image         :</b> {parsed_latest.get("findings_image","N/A")}<br>'
-                            f'<b style="color:#a5d6a7;">Soil Moisture :</b> {parsed_latest.get("findings_soil","N/A")}<br>'
-                            f'<b style="color:#a5d6a7;">Temperature   :</b> {parsed_latest.get("findings_temp","N/A")}<br>'
-                            f'<b style="color:#a5d6a7;">Humidity      :</b> {parsed_latest.get("findings_humidity","N/A")}<br>'
-                            f'<b style="color:#a5d6a7;">pH Level      :</b> {parsed_latest.get("findings_ph","N/A")}<br>'
-                            f'<b style="color:#a5d6a7;">Recommendation:</b> {rec}'
-                            f'</div></div>',
-                            unsafe_allow_html=True)
 
             pid_txt = f"🥬 Plant {img_data['plant_id']}" if img_data.get("plant_id") else ""
             ts_txt  = f"🕒 {img_data['timestamp']}"       if img_data.get("timestamp") else ""
@@ -1141,7 +1043,7 @@ if page == "DASHBOARD":
                 '</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── AI Health Status + Alerts ─────────────────────────────
+    # ── Right column: AI Greenhouse Summary + Alerts ──────────
     with right_col:
         if not latest.empty:
             last_ts = pd.to_datetime(latest['timestamp']).max()
@@ -1150,14 +1052,14 @@ if page == "DASHBOARD":
                 f'margin-bottom:6px;">🔄 {last_ts.strftime("%H:%M:%S")}</div>',
                 unsafe_allow_html=True)
 
-        # 🤖 AI Health Status — reads Pi-written ai_status from Sheets
-        # ai_status_df is fetched separately so the result persists between
-        # camera sessions (blank sensor-cycle rows do not overwrite it).
-        st.markdown('<div class="section-title">🤖 AI Health Status</div>',
+        # 🤖 Consolidated Greenhouse AI Summary
+        st.markdown('<div class="section-title">🤖 AI Greenhouse Summary</div>',
                     unsafe_allow_html=True)
 
-        ai_status_df = get_latest_ai_status_per_plant()
-        render_pi_ai_status_panel(latest, ai_status_df)
+        gh_summary_df = get_greenhouse_summary_row()
+        # Pass full sheet data so render function can find plant_id=0 rows
+        all_df = safe_read_sheet(sheet) if sheet else pd.DataFrame()
+        render_greenhouse_summary_panel(all_df)
 
         # ── Anomaly model (sklearn, if available) ─────────────
         p1 = latest[latest['plant_id'] == 1]
@@ -1173,11 +1075,9 @@ if page == "DASHBOARD":
                     st.success("✅ **HEALTHY** — Optimal conditions.")
             except Exception as e:
                 st.info(f"Processing... ({e})")
-        else:
-            st.warning("Awaiting data / AI model...")
 
         st.markdown("<div style='margin:6px 0 2px;'></div>", unsafe_allow_html=True)
-        st.markdown('<div class="section-title">🔔 Alerts</div>',
+        st.markdown('<div class="section-title">🔔 Sensor Alerts</div>',
                     unsafe_allow_html=True)
 
         alerts = []
@@ -1349,18 +1249,22 @@ elif page == "LOGS":
             return "Normal"
 
         def extract_sms_sent(ai_str):
-            """Pull the SMS Sent flag out of the ai_status cell for the log table."""
             if not ai_str or str(ai_str).strip() in ("", "nan", "N/A", "Wait for Batch..."):
                 return ""
             m = re.search(r'SMS Sent:\s*(Yes|No)', str(ai_str), re.IGNORECASE)
             return "📨 Yes" if (m and m.group(1).lower() == "yes") else ""
 
         def extract_status_only(ai_str):
-            """Return just the Status word for a compact log column."""
             if not ai_str or str(ai_str).strip() in ("", "nan", "N/A"):
                 return ""
             if str(ai_str).strip() == "Wait for Batch...":
                 return "⏳ Pending"
+            # Check for greenhouse summary (plant_id=0 rows)
+            m_overall = re.search(r'Overall Status:\s*(Healthy|Warning|Critical)', str(ai_str), re.IGNORECASE)
+            if m_overall:
+                s = m_overall.group(1).capitalize()
+                icons = {"Healthy": "✅", "Warning": "⚠️", "Critical": "🔴"}
+                return f"🏡 {icons.get(s,'')} {s} (Summary)"
             m = re.search(r'Status:\s*(Healthy|Warning|Critical)', str(ai_str), re.IGNORECASE)
             if m:
                 s = m.group(1).capitalize()
