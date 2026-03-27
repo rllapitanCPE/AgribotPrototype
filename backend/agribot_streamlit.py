@@ -1061,46 +1061,7 @@ if page == "DASHBOARD":
         all_df = safe_read_sheet(sheet) if sheet else pd.DataFrame()
         render_greenhouse_summary_panel(all_df)
 
-        # ── Anomaly model (sklearn, if available) ─────────────
-        p1 = latest[latest['plant_id'] == 1]
-        if not p1.empty and model and scaler:
-            try:
-                feat = np.array([[float(p1.iloc[0]['temp_c']),
-                                  float(p1.iloc[0]['humidity']),
-                                  float(p1.iloc[0]['ph'])]])
-                pred = model.predict(scaler.transform(feat))[0]
-                if pred == -1:
-                    st.error("🚨 **ALERT** — Anomaly detected.")
-                else:
-                    st.success("✅ **HEALTHY** — Optimal conditions.")
-            except Exception as e:
-                st.info(f"Processing... ({e})")
 
-        st.markdown("<div style='margin:6px 0 2px;'></div>", unsafe_allow_html=True)
-        st.markdown('<div class="section-title">🔔 Sensor Alerts</div>',
-                    unsafe_allow_html=True)
-
-        alerts = []
-        for _, plant in latest.iterrows():
-            pid  = int(plant['plant_id'])
-            soil = float(plant['soil_moisture'])
-            ph   = float(plant['ph'])
-            if soil < SOIL_DRY:
-                alerts.append(f"🌱 P{pid}: soil dry ({soil:.0f}%)")
-            elif soil > SOIL_WET:
-                alerts.append(f"🌱 P{pid}: soil wet ({soil:.0f}%)")
-            if ph < PH_LOW or ph > PH_HIGH:
-                lbl, _ = ph_label(ph)
-                alerts.append(f"🧪 P{pid}: pH {ph:.2f} ({lbl})")
-        if avg_temp < TEMP_LOW or avg_temp > TEMP_HIGH:
-            alerts.append(f"🌡️ Temp: {avg_temp:.1f}°C")
-        if avg_hum < HUM_LOW or avg_hum > HUM_HIGH:
-            alerts.append(f"💧 Hum: {avg_hum:.0f}%")
-        if alerts:
-            for a in alerts[:5]:
-                st.markdown(f'<div class="alert-item">{a}</div>', unsafe_allow_html=True)
-        else:
-            st.success("✅ All parameters in range.")
 
 
 # ============================================================
@@ -1236,18 +1197,6 @@ elif page == "LOGS":
 
     logs = get_historical_data(plant_id=None, hours=24)
     if not logs.empty:
-        def classify(r):
-            if r['temp_c'] < TEMP_LOW or r['temp_c'] > TEMP_HIGH:
-                return "🌡️ Temp"
-            if r['humidity'] < HUM_LOW or r['humidity'] > HUM_HIGH:
-                return "💧 Humidity"
-            if r['ph'] < PH_LOW or r['ph'] > PH_HIGH:
-                lbl, _ = ph_label(float(r['ph']))
-                return f"🧪 pH ({lbl})"
-            if r['soil_moisture'] < SOIL_DRY or r['soil_moisture'] > SOIL_WET:
-                return "🌱 Soil"
-            return "Normal"
-
         def extract_sms_sent(ai_str):
             if not ai_str or str(ai_str).strip() in ("", "nan", "N/A", "Wait for Batch..."):
                 return ""
@@ -1272,12 +1221,11 @@ elif page == "LOGS":
                 return f"{icons.get(s, '')} {s}"
             return str(ai_str)[:40]
 
-        logs['event']      = logs.apply(classify, axis=1)
         logs['ai_result']  = logs['ai_status'].apply(extract_status_only) if 'ai_status' in logs.columns else ""
         logs['sms_status'] = logs['ai_status'].apply(extract_sms_sent)    if 'ai_status' in logs.columns else ""
 
         display_cols = ['timestamp', 'plant_id', 'temp_c', 'humidity',
-                        'soil_moisture', 'ph', 'event', 'ai_result', 'sms_status']
+                        'soil_moisture', 'ph', 'ai_result', 'sms_status']
         if 'image_url' in logs.columns:
             display_cols.insert(-3, 'image_url')
 
@@ -1288,7 +1236,6 @@ elif page == "LOGS":
             "humidity":      st.column_config.NumberColumn("Hum (%)"),
             "soil_moisture": st.column_config.NumberColumn("Soil %"),
             "ph":            st.column_config.NumberColumn("pH"),
-            "event":         st.column_config.TextColumn("Sensor Event"),
             "ai_result":     st.column_config.TextColumn("🤖 AI Status", width="small"),
             "sms_status":    st.column_config.TextColumn("📨 SMS", width="small"),
             "image_url":     st.column_config.LinkColumn("📸 Image"),
