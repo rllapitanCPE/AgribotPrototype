@@ -585,7 +585,12 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
 
     if summary_df.empty:
         # No summary row exists yet — show a helpful note
-        st.info("🕒 Greenhouse summary not available yet.\n\nThe Pi will write a consolidated summary after the next scheduled camera session (7:00 AM, 12:00 NN, or 5:00 PM).")
+        st.markdown(
+            '<div class="gh-summary-card gh-summary-pending" style="color:#aaa;">'
+            '🕒 Greenhouse summary not available yet.<br><br>'
+            'The Pi will write a consolidated summary after the next scheduled '
+            'camera session (7:00 AM, 12:00 NN, or 5:00 PM).'
+            '</div>', unsafe_allow_html=True)
         return
 
     # Most recent summary row
@@ -596,7 +601,10 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
     parsed = parse_greenhouse_summary_from_sheets(raw_ai)
 
     if not parsed:
-        st.info("🕒 No AI summary yet — waiting for next camera session.")
+        st.markdown(
+            '<div class="gh-summary-card gh-summary-pending" style="color:#aaa;">'
+            '🕒 No AI summary yet — waiting for next camera session.'
+            '</div>', unsafe_allow_html=True)
         return
 
     # Pending state
@@ -1060,6 +1068,8 @@ if page == "DASHBOARD":
         # Pass full sheet data so render function can find plant_id=0 rows
         all_df = safe_read_sheet(sheet) if sheet else pd.DataFrame()
         render_greenhouse_summary_panel(all_df)
+
+
 
 
 
