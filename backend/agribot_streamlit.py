@@ -585,12 +585,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
 
     if summary_df.empty:
         # No summary row exists yet — show a helpful note
-        st.markdown(
-            '<div class="gh-summary-card gh-summary-pending" style="color:#aaa;">'
-            '🕒 Greenhouse summary not available yet.<br><br>'
-            'The Pi will write a consolidated summary after the next scheduled '
-            'camera session (7:00 AM, 12:00 NN, or 5:00 PM).'
-            '</div>', unsafe_allow_html=True)
+        st.info("🕒 Greenhouse summary not available yet.\n\nThe Pi will write a consolidated summary after the next scheduled camera session (7:00 AM, 12:00 NN, or 5:00 PM).")
         return
 
     # Most recent summary row
@@ -601,10 +596,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
     parsed = parse_greenhouse_summary_from_sheets(raw_ai)
 
     if not parsed:
-        st.markdown(
-            '<div class="gh-summary-card gh-summary-pending" style="color:#aaa;">'
-            '🕒 No AI summary yet — waiting for next camera session.'
-            '</div>', unsafe_allow_html=True)
+        st.info("🕒 No AI summary yet — waiting for next camera session.")
         return
 
     # Pending state
@@ -682,112 +674,6 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
 
         f'</div>',
         unsafe_allow_html=True)
-
-
-def parse_per_plant_ai_from_sheets(ai_str: str) -> dict:
-    """
-    Parses a per-plant ai_status block (plant_id 1-8) written by the Pi.
-    Returns a dict with status, image finding, recommendation, etc.
-    """
-    if not ai_str or str(ai_str).strip() in ("", "nan", "N/A", "Analyzing..."):
-        return {}
-    s = str(ai_str).strip()
-
-    def _find(pattern, default="N/A"):
-        m = re.search(pattern, s, re.IGNORECASE | re.MULTILINE)
-        return m.group(1).strip() if m else default
-
-    status_m = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
-    status   = status_m.group(1).capitalize() if status_m else "Unknown"
-
-    image_finding = _find(r'Image\s*:\s*(.+)')
-    soil_finding  = _find(r'Soil Moisture\s*:\s*(.+)')
-    rec_m = re.search(r'Recommendation:\s*\n([\s\S]+?)(?:\nSMS Sent:|\Z)', s)
-    rec   = " ".join(ln.strip() for ln in rec_m.group(1).splitlines() if ln.strip()) if rec_m else "N/A"
-    sms_m = re.search(r'SMS Sent:\s*(Yes|No)', s, re.IGNORECASE)
-    sms   = sms_m.group(1).capitalize() if sms_m else "N/A"
-
-    return {
-        'status':        status,
-        'image_finding': image_finding,
-        'soil_finding':  soil_finding,
-        'recommendation': rec,
-        'sms_sent':      sms,
-    }
-
-
-def render_per_plant_ai_cards(df: pd.DataFrame):
-    """
-    Renders compact per-plant AI analysis cards below the main dashboard panels.
-    Each card shows: Plant #, status badge, image finding, recommendation.
-    Only shown when AI data is available (after a camera session).
-    """
-    if df.empty or 'ai_status' not in df.columns:
-        return
-
-    plant_df = df[df['plant_id'] > 0].copy()
-    if plant_df.empty:
-        return
-
-    # Get most recent ai_status per plant that has actual AI data
-    plant_df = plant_df[
-        plant_df['ai_status'].notna() &
-        ~plant_df['ai_status'].isin(["", "nan", "N/A", "Analyzing...", "Wait for Batch..."])
-    ]
-    if plant_df.empty:
-        return
-
-    latest_ai = plant_df.sort_values('timestamp').groupby('plant_id').last().reset_index()
-    # Only plants 1-8 with actual parsed data
-    cards = []
-    for _, row in latest_ai.iterrows():
-        parsed = parse_per_plant_ai_from_sheets(str(row.get('ai_status', '')))
-        if parsed:
-            parsed['plant_id'] = int(row['plant_id'])
-            parsed['timestamp'] = pd.to_datetime(row['timestamp']).strftime("%H:%M")
-            cards.append(parsed)
-
-    if not cards:
-        return
-
-    st.markdown('<div class="section-title" style="margin-top:10px;">🌱 Per-Plant AI Analysis</div>',
-                unsafe_allow_html=True)
-
-    # 4 per row
-    cols_per_row = 4
-    for i in range(0, len(cards), cols_per_row):
-        row_cards = cards[i:i + cols_per_row]
-        cols = st.columns(len(row_cards))
-        for col, card in zip(cols, row_cards):
-            status = card.get('status', 'Unknown')
-            color_map = {
-                "Healthy":  ("#81c784", "rgba(46,125,50,0.18)",  "✅"),
-                "Warning":  ("#ffb74d", "rgba(230,81,0,0.18)",   "⚠️"),
-                "Critical": ("#ef9a9a", "rgba(183,28,28,0.18)",  "🔴"),
-                "Unknown":  ("#90CAF9", "rgba(21,101,192,0.12)", "❓"),
-            }
-            txt_c, bg_c, icon = color_map.get(status, ("#90CAF9", "rgba(21,101,192,0.12)", "❓"))
-            img_f = card.get('image_finding', 'N/A')
-            rec   = card.get('recommendation', 'N/A')
-            rec_short = rec[:90] + "..." if len(rec) > 90 else rec
-            pid   = card.get('plant_id', '?')
-            ts    = card.get('timestamp', '')
-
-            with col:
-                st.markdown(
-                    f'<div style="background:{bg_c};border:1px solid {txt_c}33;'
-                    f'border-radius:9px;padding:8px 10px;margin-bottom:6px;">'
-                    f'<div style="font-weight:900;color:{txt_c};font-size:11px;'
-                    f'margin-bottom:4px;display:flex;justify-content:space-between;">'
-                    f'<span>{icon} Plant {pid}</span>'
-                    f'<span style="font-size:9px;color:#666;font-weight:400;">{ts}</span>'
-                    f'</div>'
-                    f'<div style="font-size:10px;color:#ccc;margin-bottom:3px;">'
-                    f'<b style="color:#a5d6a7;">Img:</b> {img_f}</div>'
-                    f'<div style="font-size:10px;color:#e8f5e9;line-height:1.5;">'
-                    f'<b style="color:#66bb6a;">Rec:</b> {rec_short}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True)
 
 
 # ============================================================
@@ -1174,10 +1060,6 @@ if page == "DASHBOARD":
         # Pass full sheet data so render function can find plant_id=0 rows
         all_df = safe_read_sheet(sheet) if sheet else pd.DataFrame()
         render_greenhouse_summary_panel(all_df)
-
-    # ── Per-Plant AI Analysis cards (full width below camera + summary) ──
-    all_df_for_plants = safe_read_sheet(sheet) if sheet else pd.DataFrame()
-    render_per_plant_ai_cards(all_df_for_plants)
 
 
 
