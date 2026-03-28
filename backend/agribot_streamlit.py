@@ -18,7 +18,7 @@ from streamlit_autorefresh import st_autorefresh
 
 # ============================================================
 # NOTE: Gemini is NOT called from Streamlit.
-# The Pi runs Gemini 2.5 Flash Lite, writes the full structured
+# The Pi runs Gemini 2.5 Flash, writes the full structured
 # result (per-plant blocks + GREENHOUSE_SUMMARY at plant_id=0)
 # to the ai_status column in Google Sheets.
 # Streamlit reads that column — zero Gemini quota used here.
