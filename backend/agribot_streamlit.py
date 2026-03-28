@@ -18,8 +18,8 @@ from streamlit_autorefresh import st_autorefresh
 
 # ============================================================
 # NOTE: Gemini is NOT called from Streamlit.
-# The Pi runs Gemini, writes the full structured result
-# (per-plant blocks + GREENHOUSE_SUMMARY at plant_id=0)
+# The Pi runs Gemini 2.5 Flash Lite, writes the full structured
+# result (per-plant blocks + GREENHOUSE_SUMMARY at plant_id=0)
 # to the ai_status column in Google Sheets.
 # Streamlit reads that column — zero Gemini quota used here.
 #
@@ -1218,6 +1218,8 @@ elif page == "LOGS":
                 return ""
             if str(ai_str).strip() == "Wait for Batch...":
                 return "⏳ Pending"
+            if "Quota Limit Reached" in str(ai_str):
+                return "⏭ Quota Skipped"
             # Check for greenhouse summary (plant_id=0 rows)
             m_overall = re.search(r'Overall Status:\s*(Healthy|Warning|Critical)', str(ai_str), re.IGNORECASE)
             if m_overall:
