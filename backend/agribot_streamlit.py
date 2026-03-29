@@ -121,12 +121,9 @@ section.main > div {
 #MainMenu, footer, header,
 [data-testid="stHeader"], [data-testid="stToolbar"],
 [data-testid="stDecoration"], [data-testid="stStatusWidget"],
-[data-testid="collapsedControl"], [data-testid="stSidebarCollapsedControl"], .stDeployButton,
+[data-testid="collapsedControl"], .stDeployButton,
 button[title="View App"], button[title="Manage app"],
-button[kind="headerNoSpacing"]  {
-    display: none !important;
-    visibility: hidden !important;
-} a[href*="streamlit.io"],
+button[kind="headerNoSpacing"], a[href*="streamlit.io"],
 .viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
 #GithubIcon, .css-1dp5vir {
     display: none !important; visibility: hidden !important;
@@ -140,8 +137,6 @@ section[data-testid="stSidebar"] {
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
     display: flex !important; flex-direction: column !important;
     align-items: center !important; padding: 0 4px 4px !important;
-    padding-top: 0rem !important; 
-    gap: 5px !important;
 }
 [data-testid="stSidebar"] [data-testid="stElementToolbar"] { display: none !important; }
 .stRadio > div {
