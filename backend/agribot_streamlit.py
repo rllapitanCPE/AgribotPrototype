@@ -123,7 +123,10 @@ section.main > div {
 [data-testid="stDecoration"], [data-testid="stStatusWidget"],
 [data-testid="collapsedControl"], [data-testid="stSidebarCollapsedControl"], .stDeployButton,
 button[title="View App"], button[title="Manage app"],
-button[kind="headerNoSpacing"], a[href*="streamlit.io"],
+button[kind="headerNoSpacing"]  {
+    display: none !important;
+    visibility: hidden !important;
+} a[href*="streamlit.io"],
 .viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
 #GithubIcon, .css-1dp5vir {
     display: none !important; visibility: hidden !important;
