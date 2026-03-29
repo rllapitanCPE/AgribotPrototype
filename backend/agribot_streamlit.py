@@ -173,7 +173,7 @@ section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p 
     background: rgba(46,125,50,0.12) !important; border: none !important;
     border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
     min-height: 44px !important; transition: all 0.2s !important; margin-top: 8px !important;
-    cursor: pointer !important; display: flex !important;
+    cursor: pointer !important; display: none !important;
     align-items: center !important; justify-content: center !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
