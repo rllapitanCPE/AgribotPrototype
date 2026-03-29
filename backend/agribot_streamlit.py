@@ -121,7 +121,9 @@ section.main > div {
 #MainMenu, footer, header,
 [data-testid="stHeader"], [data-testid="stToolbar"],
 [data-testid="stDecoration"], [data-testid="stStatusWidget"],
-[data-testid="collapsedControl"], .stDeployButton,
+[data-testid="collapsedControl"]{
+    display: none !important;
+}, .stDeployButton,
 button[title="View App"], button[title="Manage app"],
 button[kind="headerNoSpacing"], a[href*="streamlit.io"],
 .viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
@@ -134,6 +136,11 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid rgba(46,125,50,0.5) !important;
     overflow: hidden !important; height: 100vh !important; padding-top: 0 !important;
 }
+
+section[data-testid="stSidebar"] > div:first-child {
+    padding-top: 1rem !important; /* Adjust this to move your logo up or down */
+}
+
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
     display: flex !important; flex-direction: column !important;
     align-items: center !important; padding: 0 4px 4px !important;
