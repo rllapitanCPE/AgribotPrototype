@@ -1645,6 +1645,12 @@ elif page == "LOGS":
 # PAGE: USER MANAGEMENT
 # ============================================================
 elif page == "USERS":
+    st.markdown(
+        '<div style="padding:6px 12px 4px;">'
+        '<div style="font-size:18px;font-weight:900;color:#fff;">Admin Panel</div>'
+        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
+        'Registered accounts</div></div>',
+        unsafe_allow_html=True)
 
     st.table(pd.DataFrame({
         "Username": ["admin@agribot.ai", "user@agribot.ai"],
