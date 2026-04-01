@@ -27,9 +27,15 @@ from streamlit_autorefresh import st_autorefresh
 #                 last plant row (P8) after every camera session
 # Streamlit reads both columns — zero Gemini quota used here.
 #
-# SUMMARY PANEL: reads the latest non-blank ai_summary value
-# from Sheets and renders it as a consolidated greenhouse card.
-# Format: Status / Findings (avg) / Recommendation / SMS line
+# SUMMARY PANEL (CHANGED):
+#   Now reads the NEW structured ai_summary format produced by the
+#   "Crop Monitoring Summary with SMS Alert" prompt:
+#     OVERALL GREENHOUSE STATUS: <Healthy / Moderate Risk / High Risk>
+#     SENSOR SUMMARY: <text>
+#     ALERT LIST: - P<ID>: <issue> ...
+#     RECOMMENDATIONS: - <step> ...
+#     SMS ALERT: <≤160 char>
+#   Backward-compatible with the old Status/Findings/SMS format.
 # ============================================================
 try:
     from googleapiclient.discovery import build
@@ -371,6 +377,37 @@ div[data-testid="stMetricValue"] {
     padding: 1px 6px; font-size: 9px; color: #aaa; font-weight: 700;
     margin-left: 6px; vertical-align: middle;
 }
+
+/* ── NEW: Sensor Summary block ──────────────────────────── */
+.gh-sensor-summary {
+    font-size: 10px; color: #c8e6c9; line-height: 1.7;
+    background: rgba(46,125,50,0.08); border-radius: 6px;
+    padding: 6px 8px; margin-bottom: 8px;
+    border-left: 3px solid rgba(76,175,80,0.4);
+}
+
+/* ── NEW: Alert list items ──────────────────────────────── */
+.gh-alert-item {
+    padding: 4px 8px; margin: 3px 0;
+    background: rgba(183,28,28,0.10);
+    border-left: 3px solid #ef9a9a;
+    border-radius: 0 6px 6px 0;
+    font-size: 10px; color: #ef9a9a; line-height: 1.5;
+}
+.gh-alert-none {
+    font-size: 10px; color: #81c784; font-style: italic; padding: 2px 0;
+}
+
+/* ── NEW: Recommendation bullet items ──────────────────── */
+.gh-rec-item {
+    padding: 3px 0; font-size: 10px; color: #e8f5e9;
+    line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex; gap: 6px; align-items: flex-start;
+}
+.gh-rec-bullet {
+    color: #4CAF50; font-weight: 900; flex-shrink: 0; margin-top: 1px;
+}
+/* ── END NEW ─────────────────────────────────────────────── */
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
@@ -554,64 +591,138 @@ def fetch_drive_image_private(file_id: str):
 
 
 # ============================================================
-# GREENHOUSE SUMMARY PARSER
-# Reads the ai_summary column written by build_overall_summary()
-# on the Pi after every camera session.
+# GREENHOUSE SUMMARY PARSER  (CHANGED)
+# ============================================================
+# NEW FORMAT (from "Crop Monitoring Summary with SMS Alert" prompt):
+#   OVERALL GREENHOUSE STATUS:
+#   <Healthy / Moderate Risk / High Risk>
 #
-# Expected format stored in ai_summary:
+#   SENSOR SUMMARY:
+#   <brief sensor average text>
+#
+#   ALERT LIST:
+#   - P<ID>: <issue>
+#   ... or "None"
+#
+#   RECOMMENDATIONS:
+#   - <step>
+#   ...
+#
+#   SMS ALERT:
+#   <≤160 char message>
+#
+# OLD FORMAT (fallback, still supported):
 #   Status: Critical
-#
 #   Findings:
-#   * Image         : No lettuce plant visible; ceiling with fan.
-#   * Soil Moisture : High (100.0)
-#   * Temperature   : High (25.9)
-#   * Humidity      : High (87.8)
-#   * pH Level      : Normal (6.03)
-#
-#   Critical Plants: P1, P2, P3, P4, P5, P6, P7, P8
-#   Warning Plants : P3, P7
-#
-#   Recommendation:
-#   The combination of high temperature and extremely high humidity...
-#
-#   SMS: Critical: Very high temperature detected...
+#   * Image         : ...
+#   * Soil Moisture : ...
+#   ...
+#   Recommendation: ...
+#   SMS: ...
 # ============================================================
 def parse_ai_summary(ai_summary_str: str) -> dict:
     """
-    Parses the consolidated ai_summary string written by the Pi's
-    build_overall_summary() function into a structured dict.
+    CHANGED: Detects and parses BOTH the new structured format (OVERALL GREENHOUSE
+    STATUS / SENSOR SUMMARY / ALERT LIST / RECOMMENDATIONS / SMS ALERT) and the
+    old format (Status / Findings / Recommendation / SMS).
 
+    Returns a dict with a '__new_format__' flag set to True when new format is
+    detected, so render_greenhouse_summary_panel() knows which layout to use.
 
-    Returns dict with keys:
+    New-format keys:
+        status_label  - "Healthy" / "Moderate Risk" / "High Risk"
+        status        - "Healthy" / "Warning" / "Critical" (CSS/colour mapping)
+        sensor_summary- plain text sensor average block
+        alert_list    - list of str, one per plant with issues ([] if none)
+        recommendations - list of str action bullets
+        sms_line      - ≤160 char SMS text
+
+    Old-format keys (unchanged):
         status, finding_image, finding_soil, finding_temp,
         finding_humidity, finding_ph, critical_plants,
         warning_plants, recommendation, sms_line
-    or {} if blank / unparseable.
-    {'__pending__': True} if still waiting for batch.
     """
     if not ai_summary_str or str(ai_summary_str).strip() in ("", "nan", "N/A"):
         return {}
 
-
     s = str(ai_summary_str).strip()
-
 
     if s == "Wait for Batch...":
         return {"__pending__": True}
 
+    # ── NEW FORMAT detection ─────────────────────────────────────────────────
+    if "OVERALL GREENHOUSE STATUS:" in s:
+        result = {"__new_format__": True}
 
+        def _find_new(pattern, default=""):
+            m = re.search(pattern, s, re.IGNORECASE)
+            return m.group(1).strip() if m else default
+
+        # Overall status label (e.g. "High Risk", "Moderate Risk", "Healthy")
+        result['status_label'] = _find_new(
+            r'OVERALL GREENHOUSE STATUS:\s*\n?(.+)', "Unknown")
+
+        # Map label to CSS status key
+        sl = result['status_label'].lower()
+        if 'high' in sl:
+            result['status'] = 'Critical'
+        elif 'moderate' in sl:
+            result['status'] = 'Warning'
+        elif 'healthy' in sl:
+            result['status'] = 'Healthy'
+        else:
+            result['status'] = 'Unknown'
+
+        # Sensor summary paragraph
+        sens_m = re.search(
+            r'SENSOR SUMMARY:\s*\n([\s\S]+?)(?=\nALERT LIST:|\Z)', s, re.IGNORECASE)
+        result['sensor_summary'] = sens_m.group(1).strip() if sens_m else ""
+
+        # Alert list
+        alert_m = re.search(
+            r'ALERT LIST:\s*\n([\s\S]+?)(?=\nRECOMMENDATIONS:|\Z)', s, re.IGNORECASE)
+        if alert_m:
+            raw_alerts = alert_m.group(1).strip()
+            if raw_alerts.lower() == 'none':
+                result['alert_list'] = []
+            else:
+                result['alert_list'] = [
+                    ln.lstrip('- ').strip()
+                    for ln in raw_alerts.splitlines()
+                    if ln.strip() and ln.strip().lower() != 'none'
+                ]
+        else:
+            result['alert_list'] = []
+
+        # Recommendations
+        rec_m = re.search(
+            r'RECOMMENDATIONS:\s*\n([\s\S]+?)(?=\nSMS ALERT:|\Z)', s, re.IGNORECASE)
+        if rec_m:
+            result['recommendations'] = [
+                ln.lstrip('- ').strip()
+                for ln in rec_m.group(1).splitlines()
+                if ln.strip()
+            ]
+        else:
+            result['recommendations'] = []
+
+        # SMS ALERT line
+        sms_m = re.search(r'SMS ALERT:\s*\n?(.+)', s, re.IGNORECASE)
+        result['sms_line'] = sms_m.group(1).strip() if sms_m else ""
+
+        return result
+    # ── END NEW FORMAT ────────────────────────────────────────────────────────
+
+    # ── OLD FORMAT (unchanged, backward-compatible) ──────────────────────────
     def _find(pattern, default="N/A"):
         m = re.search(pattern, s, re.IGNORECASE)
         return m.group(1).strip() if m else default
 
-
     result = {}
-
 
     # Overall status
     result['status'] = _find(
         r'Status:\s*(Healthy|Warning|Critical|Unknown)', "Unknown")
-
 
     # Findings — each on its own bullet line
     result['finding_image']    = _find(r'\*\s*Image\s*:\s*(.+)')
@@ -620,11 +731,9 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
     result['finding_humidity'] = _find(r'\*\s*Humidity\s*:\s*(.+)')
     result['finding_ph']       = _find(r'\*\s*pH Level\s*:\s*(.+)')
 
-
     # Affected plant lists (e.g. "P1, P2, P3")
     result['critical_plants'] = _find(r'Critical Plants:\s*(.+)', "")
     result['warning_plants']  = _find(r'Warning Plants\s*:\s*(.+)', "")
-
 
     # Recommendation (multi-line block after "Recommendation:\n")
     rec_m = re.search(r'Recommendation:\s*\n([\s\S]+?)(?=\n\nSMS:|\nSMS:|\Z)', s)
@@ -634,14 +743,11 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
     else:
         result['recommendation'] = _find(r'Recommendation:\s*(.+)', "N/A")
 
-
     # SMS line (the short Gemini-generated alert line)
     result['sms_line'] = _find(r'SMS:\s*(.+)', "")
 
-
     return result
-
-
+    # ── END OLD FORMAT ────────────────────────────────────────────────────────
 
 
 def _finding_class(value_str: str) -> str:
@@ -653,16 +759,25 @@ def _finding_class(value_str: str) -> str:
     return ""
 
 
+# ── NEW helper ──────────────────────────────────────────────
+def _status_label_to_display(status_label: str) -> str:
+    """Maps 'High Risk' → '🔴 High Risk', 'Moderate Risk' → '⚠️ Moderate Risk', etc."""
+    sl = status_label.lower()
+    if 'high' in sl:   return f"🔴 {status_label}"
+    if 'moderate' in sl: return f"⚠️ {status_label}"
+    if 'healthy' in sl:  return f"✅ {status_label}"
+    return f"ℹ️ {status_label}"
+# ── END NEW ──────────────────────────────────────────────────
 
 
 def render_greenhouse_summary_panel(df: pd.DataFrame):
     """
     Renders the 🤖 AI Greenhouse Summary panel on the dashboard.
 
-
-    Reads the latest non-blank ai_summary value from the sheet.
-    Displays: overall status, findings (averaged sensors), affected
-    plant IDs, Gemini recommendation, and the SMS alert line.
+    CHANGED: Now handles BOTH the new structured format (OVERALL GREENHOUSE STATUS /
+    SENSOR SUMMARY / ALERT LIST / RECOMMENDATIONS / SMS ALERT) produced by the
+    "Crop Monitoring Summary with SMS Alert" prompt, AND the old format for
+    backward compatibility.
     """
     if df.empty or 'ai_summary' not in df.columns:
         st.markdown(
@@ -672,12 +787,10 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             '</div>', unsafe_allow_html=True)
         return
 
-
     # Find the latest row that has a non-blank ai_summary
     summary_df = df[
         df['ai_summary'].astype(str).str.strip().replace('nan', '') != ''
     ].copy()
-
 
     if summary_df.empty:
         st.markdown(
@@ -690,14 +803,11 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             '</div>', unsafe_allow_html=True)
         return
 
-
     latest_row  = summary_df.sort_values('timestamp').iloc[-1]
     raw_summary = str(latest_row['ai_summary']).strip()
     ts          = pd.to_datetime(latest_row['timestamp']).strftime("%b %d, %Y · %I:%M %p")
 
-
     parsed = parse_ai_summary(raw_summary)
-
 
     if not parsed:
         st.markdown(
@@ -706,7 +816,6 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             '</div>', unsafe_allow_html=True)
         return
 
-
     # Still processing
     if parsed.get("__pending__"):
         st.markdown(
@@ -714,7 +823,6 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             '🔄 AI analyzing batch... greenhouse summary will appear shortly.'
             '</div>', unsafe_allow_html=True)
         return
-
 
     status = parsed.get('status', 'Unknown')
     color_map = {
@@ -725,7 +833,90 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
     }
     txt_c, css_cls, icon = color_map.get(status, ("#90CAF9", "gh-summary-unknown", "ℹ️"))
 
+    # ── CHANGED: Render NEW format ────────────────────────────────────────────
+    if parsed.get('__new_format__'):
+        status_label  = parsed.get('status_label', status)
+        sensor_sum    = parsed.get('sensor_summary', '')
+        alert_list    = parsed.get('alert_list', [])
+        recs          = parsed.get('recommendations', [])
+        sms_line      = parsed.get('sms_line', '')
 
+        # Sensor summary block
+        sensor_html = (
+            f'<div class="gh-sensor-summary">{sensor_sum}</div>'
+        ) if sensor_sum else ""
+
+        # Alert list items
+        if alert_list:
+            alerts_html = "".join(
+                f'<div class="gh-alert-item">⚡ {item}</div>'
+                for item in alert_list
+            )
+        else:
+            alerts_html = '<div class="gh-alert-none">✅ No plants require immediate attention.</div>'
+
+        # Recommendation bullets
+        recs_html = "".join(
+            f'<div class="gh-rec-item">'
+            f'<span class="gh-rec-bullet">▸</span>'
+            f'<span>{rec}</span>'
+            f'</div>'
+            for rec in recs
+        ) if recs else '<div style="font-size:10px;color:#888;">No recommendations.</div>'
+
+        # SMS alert row
+        sms_html = (
+            f'<div style="margin-top:8px;padding:6px 8px;'
+            f'background:rgba(21,101,192,0.12);border:1px solid rgba(144,202,249,0.3);'
+            f'border-radius:6px;font-size:9px;color:#90CAF9;">'
+            f'<span style="font-weight:700;letter-spacing:0.5px;">📨 SMS ALERT: </span>'
+            f'{sms_line}'
+            f'</div>'
+        ) if sms_line else ""
+
+        st.markdown(
+            f'<div class="gh-summary-card {css_cls}">'
+
+            # ── Header ──────────────────────────────────────────
+            f'<div style="font-weight:900;color:{txt_c};font-size:13px;'
+            f'margin-bottom:6px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
+            f'{icon} Overall Status: <b>{status_label}</b>'
+            f'<span style="font-size:9px;color:#888;font-weight:400;margin-left:6px;">{ts}</span>'
+            f'</div>'
+
+            # ── Sensor Summary ───────────────────────────────────
+            f'<div style="margin-bottom:6px;">'
+            f'<div style="font-size:9px;font-weight:700;color:#a5d6a7;'
+            f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
+            f'SENSOR SUMMARY</div>'
+            f'{sensor_html}'
+            f'</div>'
+
+            # ── Alert List ───────────────────────────────────────
+            f'<div style="margin-bottom:6px;">'
+            f'<div style="font-size:9px;font-weight:700;color:#ef9a9a;'
+            f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
+            f'ALERT LIST</div>'
+            f'{alerts_html}'
+            f'</div>'
+
+            # ── Recommendations ──────────────────────────────────
+            f'<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
+            f'<div style="font-size:9px;font-weight:700;color:#66bb6a;'
+            f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
+            f'RECOMMENDATIONS</div>'
+            f'{recs_html}'
+            f'</div>'
+
+            # ── SMS Alert ────────────────────────────────────────
+            f'{sms_html}'
+
+            f'</div>',
+            unsafe_allow_html=True)
+        return
+    # ── END NEW FORMAT RENDER ─────────────────────────────────────────────────
+
+    # ── OLD FORMAT render (unchanged) ────────────────────────────────────────
     # Affected plant pills
     crit_pids = parsed.get('critical_plants', '').strip()
     warn_pids = parsed.get('warning_plants',  '').strip()
@@ -736,7 +927,6 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         tally_html += f'<span class="tally-pill tally-warning">⚠️ Warning: {warn_pids}</span>'
     if not tally_html and status == "Healthy":
         tally_html = '<span class="tally-pill tally-healthy">✅ All plants healthy</span>'
-
 
     # Findings rows
     findings = [
@@ -756,7 +946,6 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             f'</div>'
         )
 
-
     rec      = parsed.get('recommendation', 'N/A')
     sms_line = parsed.get('sms_line', '')
     sms_html = (
@@ -767,10 +956,8 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         f'</div>'
     ) if sms_line else ""
 
-
     st.markdown(
         f'<div class="gh-summary-card {css_cls}">'
-
 
         # ── Header ──────────────────────────────────────────
         f'<div style="font-weight:900;color:{txt_c};font-size:13px;'
@@ -779,10 +966,8 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         f'<span style="font-size:9px;color:#888;font-weight:400;margin-left:6px;">{ts}</span>'
         f'</div>'
 
-
         # ── Affected plant pills ─────────────────────────────
         f'<div style="margin-bottom:8px;">{tally_html}</div>'
-
 
         # ── Findings ─────────────────────────────────────────
         f'<div style="margin-bottom:8px;">'
@@ -792,7 +977,6 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         f'{findings_html}'
         f'</div>'
 
-
         # ── Recommendation ───────────────────────────────────
         f'<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
         f'<div style="font-size:9px;font-weight:700;color:#66bb6a;'
@@ -801,15 +985,12 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         f'<div style="font-size:10px;color:#e8f5e9;line-height:1.7;">{rec}</div>'
         f'</div>'
 
-
         # ── SMS alert line ───────────────────────────────────
         f'{sms_html}'
 
-
         f'</div>',
         unsafe_allow_html=True)
-
-
+    # ── END OLD FORMAT ────────────────────────────────────────────────────────
 
 
 # ============================================================
@@ -898,7 +1079,6 @@ def show_login():
         f'letter-spacing:3px;text-transform:uppercase;margin-bottom:20px;">'
         f'Smart Farming &middot; Intelligent Monitoring</div>'
         f'</div>', unsafe_allow_html=True)
-
 
     _, mid, _ = st.columns([1, 1.6, 1])
     with mid:
@@ -1405,7 +1585,16 @@ elif page == "LOGS":
             s = str(ai_summary_str).strip()
             if not s:
                 return ""
-            # Parse just the status line from the summary
+            # ── CHANGED: also check new OVERALL GREENHOUSE STATUS format ────
+            new_m = re.search(r'OVERALL GREENHOUSE STATUS:\s*\n?(.+)', s, re.IGNORECASE)
+            if new_m:
+                label = new_m.group(1).strip()
+                sl = label.lower()
+                if 'high' in sl:     return "🏡 🔴 High Risk"
+                if 'moderate' in sl: return "🏡 ⚠️ Moderate Risk"
+                if 'healthy' in sl:  return "🏡 ✅ Healthy"
+                return f"🏡 {label}"
+            # ── Old format ────────────────────────────────────────────────────
             m = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
             if m:
                 status = m.group(1).capitalize()
@@ -1469,5 +1658,3 @@ elif page == "USERS":
         "Role":     ["Administrator",    "Standard User"]
     }))
     st.info("Future feature: add / remove users via database.")
- 
-
