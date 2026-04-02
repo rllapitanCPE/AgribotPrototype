@@ -252,6 +252,11 @@ section[data-testid="stSidebar"] > div:last-child {
     pointer-events: none !important;
 }
 
+/* 3. Push the main app content to start AFTER the sidebar */
+[data-testid="stAppViewContainer"] {
+    margin-left: 230px !important;
+}
+
 div[data-testid="stMetric"] {
     background: #023f23 !important; border: 1px solid rgba(76,175,80,0.3) !important;
     border-radius: 10px !important; padding: 8px 6px !important; text-align: center !important;
