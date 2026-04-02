@@ -143,8 +143,8 @@ section.main > div {
 [data-testid="stHeader"], [data-testid="stToolbar"],
 [data-testid="stDecoration"], [data-testid="stStatusWidget"],
 [data-testid="collapsedControl"]
-button[title="collapsedControl"]
-button[aria-label="collapsedControl"]
+button[title="Collapse sidebar"]
+button[aria-label="Collapse sidebar"]
 button[kind="headerNoSpacing"] {
     display: none !important;
     visibility: hidden !important;
@@ -211,6 +211,11 @@ section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p 
     background: rgba(198,40,40,0.15) !important;
     border-color: rgba(198,40,40,0.5) !important; color: #ffffff !important;
 }
+
+section[data-testid="stSidebar"] button:has(svg) {
+    display: none !important;
+}
+
 div[data-testid="stMetric"] {
     background: #023f23 !important; border: 1px solid rgba(76,175,80,0.3) !important;
     border-radius: 10px !important; padding: 8px 6px !important; text-align: center !important;
