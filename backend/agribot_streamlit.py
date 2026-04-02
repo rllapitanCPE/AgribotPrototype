@@ -115,6 +115,8 @@ html, body {
 [data-testid="stAppViewContainer"] {
     overflow: hidden !important; padding: 0 !important;
     margin: 0 !important; height: 100vh !important;
+    transition: none !important;
+    animation: none !important;
 }
 [data-testid="stAppViewBlockContainer"] {
     overflow: hidden !important; padding: 0 !important;
@@ -140,13 +142,15 @@ section.main > div {
 #MainMenu, footer, header,
 [data-testid="stHeader"], [data-testid="stToolbar"],
 [data-testid="stDecoration"], [data-testid="stStatusWidget"],
-[data-testid="collapsedControl"] button[data-testid="sidebar-collapse-button"] {
+[data-testid="collapsedControl"]
+button[title="collapsedControl"]
+button[aria-label="collapsedControl"]
+button[kind="headerNoSpacing"] {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
-    pointer-events: none !important; /* Makes it unclickable even if it were visible */
-}
- .stDeployButton,
+    pointer-events: none !important;
+} .stDeployButton,
 button[title="View App"], button[title="Manage app"],
 button[kind="headerNoSpacing"], a[href*="streamlit.io"],
 .viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
@@ -154,7 +158,9 @@ button[kind="headerNoSpacing"], a[href*="streamlit.io"],
     display: none !important; visibility: hidden !important;
 }
 section[data-testid="stSidebar"] {
-    width: 230px !important; min-width: 230px !important;
+    min-width: 230px !important;
+    max-width: 230px !important;
+    transform: none !important;
     background: #023f23 !important;
     border-right: 1px solid rgba(46,125,50,0.5) !important;
     overflow: hidden !important; height: 100vh !important; padding-top: 0 !important;
