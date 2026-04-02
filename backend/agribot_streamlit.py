@@ -235,6 +235,23 @@ section[data-testid="stSidebar"] {
     max-width: 230px !important;
 }
 
+/* 1. DISABLE THE RESIZER (the invisible line you're clicking) */
+[data-testid="stSidebarResizer"] {
+    display: none !important;
+    pointer-events: none !important;
+}
+
+/* 2. REMOVE THE HOVER CURSOR ON THE EDGE */
+[data-testid="stSidebar"] {
+    cursor: default !important;
+}
+
+/* 3. ENSURE THE MAIN CONTENT AREA DOESN'T SHIFT */
+[data-testid="stAppViewContainer"] {
+    width: calc(100vw - 230px) !important;
+    margin-left: 230px !important;
+}
+
 div[data-testid="stMetric"] {
     background: #023f23 !important; border: 1px solid rgba(76,175,80,0.3) !important;
     border-radius: 10px !important; padding: 8px 6px !important; text-align: center !important;
