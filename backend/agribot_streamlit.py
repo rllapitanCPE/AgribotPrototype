@@ -115,8 +115,6 @@ html, body {
 [data-testid="stAppViewContainer"] {
     overflow: hidden !important; padding: 0 !important;
     margin: 0 !important; height: 100vh !important;
-    transition: none !important;
-    animation: none !important;
 }
 [data-testid="stAppViewBlockContainer"] {
     overflow: hidden !important; padding: 0 !important;
@@ -142,15 +140,7 @@ section.main > div {
 #MainMenu, footer, header,
 [data-testid="stHeader"], [data-testid="stToolbar"],
 [data-testid="stDecoration"], [data-testid="stStatusWidget"],
-[data-testid="collapsedControl"]
-button[title="Collapse sidebar"]
-button[aria-label="Collapse sidebar"]
-button[kind="headerNoSpacing"] {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-} .stDeployButton,
+[data-testid="collapsedControl"], .stDeployButton,
 button[title="View App"], button[title="Manage app"],
 button[kind="headerNoSpacing"], a[href*="streamlit.io"],
 .viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
@@ -158,9 +148,7 @@ button[kind="headerNoSpacing"], a[href*="streamlit.io"],
     display: none !important; visibility: hidden !important;
 }
 section[data-testid="stSidebar"] {
-    min-width: 230px !important;
-    max-width: 230px !important;
-    transform: none !important;
+    width: 230px !important; min-width: 230px !important;
     background: #023f23 !important;
     border-right: 1px solid rgba(46,125,50,0.5) !important;
     overflow: hidden !important; height: 100vh !important; padding-top: 0 !important;
@@ -212,8 +200,39 @@ section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p 
     border-color: rgba(198,40,40,0.5) !important; color: #ffffff !important;
 }
 
-section[data-testid="stSidebar"] button:has(svg) {
+/* 1. NUKE THE HEADER CONTAINER WHERE THE BUTTON LIVES */
+[data-testid="stSidebar"] > div:first-child > div:first-child {
     display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+}
+
+/* 2. KILL THE BUTTON BY EVERY POSSIBLE ATTRIBUTE */
+[data-testid="collapsedControl"],
+button[title="Collapse sidebar"],
+button[aria-label="Collapse sidebar"],
+button[kind="headerNoSpacing"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+/* 3. STOP THE SIDEBAR FROM EVER MOVING OR ANIMATING */
+section[data-testid="stSidebar"], 
+[data-testid="stAppViewContainer"],
+.stAppViewMain {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+}
+
+/* 4. FORCE THE SIDEBAR TO STAY AT 230PX */
+section[data-testid="stSidebar"] {
+    min-width: 230px !important;
+    max-width: 230px !important;
 }
 
 div[data-testid="stMetric"] {
