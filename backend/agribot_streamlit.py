@@ -235,21 +235,21 @@ section[data-testid="stSidebar"] {
     max-width: 230px !important;
 }
 
-/* 1. DISABLE THE RESIZER (the invisible line you're clicking) */
-[data-testid="stSidebarResizer"] {
+/* 1. Force Sidebar to the very left edge */
+section[data-testid="stSidebar"] {
+    width: 230px !important;
+    min-width: 230px !important;
+    max-width: 230px !important;
+    position: fixed !important;
+    left: 0 !important;
+    margin-left: 0 !important;
+}
+
+/* 2. Completely delete the resizer line and cursor */
+[data-testid="stSidebarResizer"], 
+section[data-testid="stSidebar"] > div:last-child {
     display: none !important;
     pointer-events: none !important;
-}
-
-/* 2. REMOVE THE HOVER CURSOR ON THE EDGE */
-[data-testid="stSidebar"] {
-    cursor: default !important;
-}
-
-/* 3. ENSURE THE MAIN CONTENT AREA DOESN'T SHIFT */
-[data-testid="stAppViewContainer"] {
-    width: calc(100vw - 230px) !important;
-    margin-left: 230px !important;
 }
 
 div[data-testid="stMetric"] {
