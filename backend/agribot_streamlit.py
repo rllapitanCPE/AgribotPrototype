@@ -140,9 +140,13 @@ section.main > div {
 #MainMenu, footer, header,
 [data-testid="stHeader"], [data-testid="stToolbar"],
 [data-testid="stDecoration"], [data-testid="stStatusWidget"],
-[data-testid="collapsedControl"] { /* No comma here */
+[data-testid="collapsedControl"] button[data-testid="sidebar-collapse-button"] {
     display: none !important;
-} .stDeployButton,
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important; /* Makes it unclickable even if it were visible */
+}
+ .stDeployButton,
 button[title="View App"], button[title="Manage app"],
 button[kind="headerNoSpacing"], a[href*="streamlit.io"],
 .viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
