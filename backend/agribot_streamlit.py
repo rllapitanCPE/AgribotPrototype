@@ -408,9 +408,67 @@ div[data-testid="stMetricValue"] {
     color: #4CAF50; font-weight: 900; flex-shrink: 0; margin-top: 1px;
 }
 /* ── END NEW ─────────────────────────────────────────────── */
+
+/* ── Sidebar collapse button — hide entirely ─────────── */
+[data-testid="stSidebar"] > div:first-child > div:first-child {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+}
+[data-testid="collapsedControl"],
+button[title="Collapse sidebar"],
+button[aria-label="Collapse sidebar"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+/* ── Stop sidebar from animating / moving ────────────── */
+section[data-testid="stSidebar"],
+.stAppViewMain {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+}
+
+/* ── Lock sidebar at exactly 230px, fixed to left edge ── */
+section[data-testid="stSidebar"] {
+    width: 230px !important;
+    min-width: 230px !important;
+    max-width: 230px !important;
+    position: fixed !important;
+    left: 0 !important;
+    margin-left: 0 !important;
+}
+
+/* ── Hide the drag-to-resize handle ─────────────────── */
+[data-testid="stSidebarResizer"],
+section[data-testid="stSidebar"] > div:last-child {
+    display: none !important;
+    pointer-events: none !important;
+}
+
+/* NOTE: margin-left: 230px on stAppViewContainer is injected
+   dynamically by Python — dashboard page ONLY. Login and landing
+   pages hide the sidebar so they must NOT get this offset. */
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
+
+# ── Sidebar margin — dashboard page only ─────────────────────────────────
+# The sidebar is visible (and fixed at 230px) only when the user is logged
+# in and on the dashboard. Injecting margin-left:230px globally would create
+# a blank gap on the login and landing pages where the sidebar is hidden.
+if st.session_state.get("logged_in") and st.session_state.get("page") == "dashboard":
+    st.markdown("""<style>
+    [data-testid="stAppViewContainer"] {
+        margin-left: 230px !important;
+    }
+    </style>""", unsafe_allow_html=True)
+# ── END sidebar margin ────────────────────────────────────────────────────
 
 
 
@@ -1561,9 +1619,8 @@ elif page == "LOGS":
 
 
         def extract_status_only(ai_str):
-            """Extract a short status + disease label from ai_status column.
-            CHANGED: Also shows the Disease field when a disease is detected,
-            so the LOGS table immediately tells you e.g. '🔴 Critical | Bottom Rot'.
+            """Extract status + disease label from ai_status column.
+            Shows disease name in logs when detected, e.g. '🔴 Critical | 🦠 Bottom Rot'.
             """
             if not ai_str or str(ai_str).strip() in ("", "nan", "N/A"):
                 return ""
@@ -1572,16 +1629,13 @@ elif page == "LOGS":
                 return "⏳ Pending"
             if "Quota Limit Reached" in s:
                 return "⏭ Quota Skipped"
-
             status_m = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
             if not status_m:
                 return s[:40]
-
             status = status_m.group(1).capitalize()
             icons  = {"Healthy": "✅", "Warning": "⚠️", "Critical": "🔴", "Unknown": "ℹ️"}
             label  = f"{icons.get(status, '')} {status}"
-
-            # Append disease name if one was detected (not healthy/no visible)
+            # Show disease name if one was detected (skip healthy/no-visible entries)
             disease_m = re.search(r'Disease\s*:\s*(.+)', s, re.IGNORECASE)
             if disease_m:
                 disease_raw  = disease_m.group(1).strip()
@@ -1590,7 +1644,6 @@ elif page == "LOGS":
                         and 'no visible' not in disease_name.lower()
                         and disease_name != 'N/A'):
                     label += f" | 🦠 {disease_name}"
-
             return label
 
 
