@@ -199,64 +199,6 @@ section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p 
     background: rgba(198,40,40,0.15) !important;
     border-color: rgba(198,40,40,0.5) !important; color: #ffffff !important;
 }
-
-/* 1. NUKE THE HEADER CONTAINER WHERE THE BUTTON LIVES */
-[data-testid="stSidebar"] > div:first-child > div:first-child {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-}
-
-/* 2. KILL THE BUTTON BY EVERY POSSIBLE ATTRIBUTE */
-[data-testid="collapsedControl"],
-button[title="Collapse sidebar"],
-button[aria-label="Collapse sidebar"],
-button[kind="headerNoSpacing"] {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    width: 0 !important;
-    height: 0 !important;
-}
-
-/* 3. STOP THE SIDEBAR FROM EVER MOVING OR ANIMATING */
-section[data-testid="stSidebar"], 
-[data-testid="stAppViewContainer"],
-.stAppViewMain {
-    transition: none !important;
-    animation: none !important;
-    transform: none !important;
-}
-
-/* 4. FORCE THE SIDEBAR TO STAY AT 230PX */
-section[data-testid="stSidebar"] {
-    min-width: 230px !important;
-    max-width: 230px !important;
-}
-
-/* 1. Force Sidebar to the very left edge */
-section[data-testid="stSidebar"] {
-    width: 230px !important;
-    min-width: 230px !important;
-    max-width: 230px !important;
-    position: fixed !important;
-    left: 0 !important;
-    margin-left: 0 !important;
-}
-
-/* 2. Completely delete the resizer line and cursor */
-[data-testid="stSidebarResizer"], 
-section[data-testid="stSidebar"] > div:last-child {
-    display: none !important;
-    pointer-events: none !important;
-}
-
-/* 3. Push the main app content to start AFTER the sidebar */
-[data-testid="stAppViewContainer"] {
-    margin-left: 230px !important;
-}
-
 div[data-testid="stMetric"] {
     background: #023f23 !important; border: 1px solid rgba(76,175,80,0.3) !important;
     border-radius: 10px !important; padding: 8px 6px !important; text-align: center !important;
@@ -1619,7 +1561,10 @@ elif page == "LOGS":
 
 
         def extract_status_only(ai_str):
-            """Extract a short status label from ai_status column."""
+            """Extract a short status + disease label from ai_status column.
+            CHANGED: Also shows the Disease field when a disease is detected,
+            so the LOGS table immediately tells you e.g. '🔴 Critical | Bottom Rot'.
+            """
             if not ai_str or str(ai_str).strip() in ("", "nan", "N/A"):
                 return ""
             s = str(ai_str).strip()
@@ -1627,13 +1572,26 @@ elif page == "LOGS":
                 return "⏳ Pending"
             if "Quota Limit Reached" in s:
                 return "⏭ Quota Skipped"
-            # Standard per-plant block: Status: Critical/Warning/Healthy
-            m = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
-            if m:
-                status = m.group(1).capitalize()
-                icons  = {"Healthy": "✅", "Warning": "⚠️", "Critical": "🔴", "Unknown": "ℹ️"}
-                return f"{icons.get(status, '')} {status}"
-            return s[:40]
+
+            status_m = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
+            if not status_m:
+                return s[:40]
+
+            status = status_m.group(1).capitalize()
+            icons  = {"Healthy": "✅", "Warning": "⚠️", "Critical": "🔴", "Unknown": "ℹ️"}
+            label  = f"{icons.get(status, '')} {status}"
+
+            # Append disease name if one was detected (not healthy/no visible)
+            disease_m = re.search(r'Disease\s*:\s*(.+)', s, re.IGNORECASE)
+            if disease_m:
+                disease_raw  = disease_m.group(1).strip()
+                disease_name = disease_raw.split('--')[0].strip()
+                if ('healthy' not in disease_name.lower()
+                        and 'no visible' not in disease_name.lower()
+                        and disease_name != 'N/A'):
+                    label += f" | 🦠 {disease_name}"
+
+            return label
 
 
         def extract_summary_flag(ai_summary_str):
@@ -1709,6 +1667,7 @@ elif page == "USERS":
         '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
         'Registered accounts</div></div>',
         unsafe_allow_html=True)
+
 
     st.table(pd.DataFrame({
         "Username": ["admin@agribot.ai", "user@agribot.ai"],
