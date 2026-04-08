@@ -16,9 +16,6 @@ import plotly.graph_objects as go
 import re
 from streamlit_autorefresh import st_autorefresh
 
-
-
-
 # ============================================================
 # NOTE: Gemini is NOT called from Streamlit.
 # The Pi runs Gemini 2.5 Flash, writes:
@@ -44,9 +41,6 @@ try:
 except ImportError:
     DRIVE_API_OK = False
 
-
-
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH  = os.path.join(SCRIPT_DIR, "agribotailogo.png")
 BG_PATH    = os.path.join(SCRIPT_DIR, "background.jpg")
@@ -55,27 +49,22 @@ PI_BG      = os.path.expanduser("~/env/Thesis code/backend/background.jpg")
 WIN_LOGO   = r"C:\Users\admin\Downloads\AgribotPrototype\backend\agribotailogo.png"
 WIN_BG     = r"C:\Users\admin\Downloads\AgribotPrototype\backend\background.jpg"
 
-
 LANDING_BG_PATH = os.path.join(SCRIPT_DIR, "landpage.png")
 PI_LANDING_BG   = os.path.expanduser("~/env/Thesis code/backend/landpage.png")
 WIN_LANDING_BG  = r"C:\Users\admin\Downloads\AgribotPrototype\backend\landpage.png"
-
 
 ACTUAL_LOGO       = next((p for p in [LOGO_PATH, PI_LOGO, WIN_LOGO]                    if os.path.exists(p)), "")
 ACTUAL_BG         = next((p for p in [BG_PATH,   PI_BG,   WIN_BG]                     if os.path.exists(p)), "")
 ACTUAL_LANDING_BG = next((p for p in [LANDING_BG_PATH, PI_LANDING_BG, WIN_LANDING_BG] if os.path.exists(p)), "")
 
-
 CREDENTIALS_FILE = os.path.join(SCRIPT_DIR, "..", "credentials.json")
 if not os.path.exists(CREDENTIALS_FILE):
     CREDENTIALS_FILE = os.path.expanduser("~/env/Thesis code/credentials.json")
-
 
 SPREADSHEET_ID   = "1mYScsUkoZn84FIoO_QMaku3gZT3Z9df72kPE3ray9-A"
 DRIVE_FOLDER_ID  = "1g6Tg0UZSuFrJchPyRJLgcJmM_X4Ggatm"
 DRIVE_FOLDER_URL = f"https://drive.google.com/drive/folders/{DRIVE_FOLDER_ID}"
 STREAMLIT_URL    = "https://agribotai.streamlit.app"
-
 
 _page_icon = "🌱"
 if ACTUAL_LOGO:
@@ -84,7 +73,6 @@ if ACTUAL_LOGO:
     except Exception:
         pass
 
-
 st.set_page_config(
     page_title="AgriBot-AI | Dashboard",
     page_icon=_page_icon,
@@ -92,8 +80,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
-OPTIMIZED_CSS = """
+# ============================================================
+# CONDITIONAL CSS INJECTION (replaces global OPTIMIZED_CSS)
+# ============================================================
+DASHBOARD_CSS = """
 <style>
 :root {
     --page-margin-top: 0px;
@@ -324,9 +314,6 @@ div[data-testid="stMetricValue"] {
     border-radius: 8px !important; max-height: 260px !important;
     object-fit: cover !important; width: 100% !important;
 }
-
-
-/* ── Greenhouse AI Summary card ─────────────────────────── */
 .gh-summary-card {
     border-radius: 11px; padding: 14px 16px; margin: 4px 0 8px;
     font-size: 11px; line-height: 1.8;
@@ -336,9 +323,6 @@ div[data-testid="stMetricValue"] {
 .gh-summary-critical { background: rgba(183,28,28,0.18);  border: 1px solid #ef9a9a; }
 .gh-summary-pending  { background: rgba(33,33,33,0.35);   border: 1px solid #555; }
 .gh-summary-unknown  { background: rgba(21,101,192,0.12); border: 1px solid #90CAF9; }
-
-
-/* Finding rows inside summary card */
 .gh-finding-row {
     display: flex; gap: 6px; align-items: baseline;
     font-size: 10px; margin: 2px 0; padding: 2px 0;
@@ -352,9 +336,6 @@ div[data-testid="stMetricValue"] {
 .gh-finding-high     { color: #ef9a9a !important; }
 .gh-finding-low      { color: #ffb74d !important; }
 .gh-finding-normal   { color: #81c784 !important; }
-
-
-/* Affected plant pills */
 .tally-pill {
     display: inline-block; border-radius: 20px; padding: 2px 10px;
     font-size: 10px; font-weight: 700; margin: 0 3px; letter-spacing: 0.5px;
@@ -362,9 +343,6 @@ div[data-testid="stMetricValue"] {
 .tally-healthy  { background: rgba(46,125,50,0.3);  border:1px solid #81c784; color:#81c784; }
 .tally-warning  { background: rgba(230,81,0,0.3);   border:1px solid #ffb74d; color:#ffb74d; }
 .tally-critical { background: rgba(183,28,28,0.3);  border:1px solid #ef9a9a; color:#ef9a9a; }
-
-
-/* SMS sent badge */
 .sms-sent-badge {
     display: inline-block; background: rgba(21,101,192,0.25);
     border: 1px solid #90CAF9; border-radius: 4px;
@@ -377,16 +355,12 @@ div[data-testid="stMetricValue"] {
     padding: 1px 6px; font-size: 9px; color: #aaa; font-weight: 700;
     margin-left: 6px; vertical-align: middle;
 }
-
-/* ── NEW: Sensor Summary block ──────────────────────────── */
 .gh-sensor-summary {
     font-size: 10px; color: #c8e6c9; line-height: 1.7;
     background: rgba(46,125,50,0.08); border-radius: 6px;
     padding: 6px 8px; margin-bottom: 8px;
     border-left: 3px solid rgba(76,175,80,0.4);
 }
-
-/* ── NEW: Alert list items ──────────────────────────────── */
 .gh-alert-item {
     padding: 4px 8px; margin: 3px 0;
     background: rgba(183,28,28,0.10);
@@ -397,8 +371,6 @@ div[data-testid="stMetricValue"] {
 .gh-alert-none {
     font-size: 10px; color: #81c784; font-style: italic; padding: 2px 0;
 }
-
-/* ── NEW: Recommendation bullet items ──────────────────── */
 .gh-rec-item {
     padding: 3px 0; font-size: 10px; color: #e8f5e9;
     line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,0.04);
@@ -407,13 +379,25 @@ div[data-testid="stMetricValue"] {
 .gh-rec-bullet {
     color: #4CAF50; font-weight: 900; flex-shrink: 0; margin-top: 1px;
 }
-/* ── END NEW ─────────────────────────────────────────────── */
 </style>
 """
-st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
 
-
-
+RESET_CSS = """
+<style>
+/* Remove forced left margin and restore default sidebar behaviour */
+[data-testid="stAppViewContainer"] {
+    margin-left: 0px !important;
+}
+section[data-testid="stSidebar"] {
+    width: auto !important;
+    min-width: auto !important;
+    position: relative !important;
+}
+[data-testid="collapsedControl"] {
+    display: block !important;
+}
+</style>
+"""
 
 # ============================================================
 # HELPERS
@@ -425,9 +409,6 @@ def file_to_b64(path: str) -> str:
     except Exception:
         return ""
 
-
-
-
 def ph_label(ph_val: float) -> tuple:
     if ph_val < 5.5:
         return "Acidic", "ph-acidic"
@@ -435,9 +416,6 @@ def ph_label(ph_val: float) -> tuple:
         return "Neutral", "ph-neutral"
     else:
         return "Alkaline", "ph-alkaline"
-
-
-
 
 def gdrive_direct_url(url: str) -> str:
     if not url:
@@ -454,9 +432,6 @@ def gdrive_direct_url(url: str) -> str:
         pass
     return url
 
-
-
-
 def fetch_drive_image(url: str):
     if not url:
         return None
@@ -468,9 +443,6 @@ def fetch_drive_image(url: str):
         return None
     except Exception:
         return None
-
-
-
 
 def set_background(path: str):
     b64 = file_to_b64(path)
@@ -488,9 +460,6 @@ def set_background(path: str):
         background: rgba(0,0,0,0.52); z-index: 0; pointer-events: none;
     }}
     </style>""", unsafe_allow_html=True)
-
-
-
 
 def safe_read_sheet(sheet_obj) -> pd.DataFrame:
     try:
@@ -510,12 +479,10 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
                 headers.append(h)
         df = pd.DataFrame(data[1:], columns=headers)
 
-
         # ai_summary is the new overall greenhouse summary column
         expected = ['timestamp', 'plant_id', 'temp_c', 'humidity',
                     'soil_moisture', 'ph', 'image_url', 'ai_status', 'ai_summary']
         df = df[[c for c in expected if c in df.columns]]
-
 
         df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         for col in ['temp_c', 'humidity', 'soil_moisture', 'ph']:
@@ -528,9 +495,6 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
     except Exception as e:
         st.error(f"Sheet read error: {e}")
         return pd.DataFrame()
-
-
-
 
 # ============================================================
 # DRIVE IMAGE HELPERS
@@ -553,9 +517,6 @@ def _get_drive_service_private():
         print(f"[Drive Private] Service build error: {e}")
         return None
 
-
-
-
 def _get_file_id_from_url(url: str) -> str:
     if not url:
         return ""
@@ -564,9 +525,6 @@ def _get_file_id_from_url(url: str) -> str:
     if "/file/d/" in url:
         return url.split("/file/d/")[1].split("/")[0].strip()
     return ""
-
-
-
 
 def fetch_drive_image_private(file_id: str):
     if not file_id or not DRIVE_API_OK:
@@ -587,38 +545,8 @@ def fetch_drive_image_private(file_id: str):
         print(f"[Drive Private] Download error: {e}")
         return None
 
-
-
-
 # ============================================================
 # GREENHOUSE SUMMARY PARSER  (CHANGED)
-# ============================================================
-# NEW FORMAT (from "Crop Monitoring Summary with SMS Alert" prompt):
-#   OVERALL GREENHOUSE STATUS:
-#   <Healthy / Moderate Risk / High Risk>
-#
-#   SENSOR SUMMARY:
-#   <brief sensor average text>
-#
-#   ALERT LIST:
-#   - P<ID>: <issue>
-#   ... or "None"
-#
-#   RECOMMENDATIONS:
-#   - <step>
-#   ...
-#
-#   SMS ALERT:
-#   <≤160 char message>
-#
-# OLD FORMAT (fallback, still supported):
-#   Status: Critical
-#   Findings:
-#   * Image         : ...
-#   * Soil Moisture : ...
-#   ...
-#   Recommendation: ...
-#   SMS: ...
 # ============================================================
 def parse_ai_summary(ai_summary_str: str) -> dict:
     """
@@ -749,7 +677,6 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
     return result
     # ── END OLD FORMAT ────────────────────────────────────────────────────────
 
-
 def _finding_class(value_str: str) -> str:
     """Returns CSS class based on High/Low/Normal label in the finding string."""
     v = value_str.lower()
@@ -758,8 +685,6 @@ def _finding_class(value_str: str) -> str:
     if v.startswith("normal"): return "gh-finding-normal"
     return ""
 
-
-# ── NEW helper ──────────────────────────────────────────────
 def _status_label_to_display(status_label: str) -> str:
     """Maps 'High Risk' → '🔴 High Risk', 'Moderate Risk' → '⚠️ Moderate Risk', etc."""
     sl = status_label.lower()
@@ -767,8 +692,6 @@ def _status_label_to_display(status_label: str) -> str:
     if 'moderate' in sl: return f"⚠️ {status_label}"
     if 'healthy' in sl:  return f"✅ {status_label}"
     return f"ℹ️ {status_label}"
-# ── END NEW ──────────────────────────────────────────────────
-
 
 def render_greenhouse_summary_panel(df: pd.DataFrame):
     """
@@ -992,7 +915,6 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         unsafe_allow_html=True)
     # ── END OLD FORMAT ────────────────────────────────────────────────────────
 
-
 # ============================================================
 # SESSION STATE
 # ============================================================
@@ -1000,18 +922,13 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.role      = None
 
-
 if "page" not in st.session_state:
     st.session_state.page = "landing"
-
 
 USERS = {
     "admin@agribot.ai": {"password": "admin123", "role": "admin"},
     "user@agribot.ai":  {"password": "user123",  "role": "user"},
 }
-
-
-
 
 # ============================================================
 # PAGE: LANDING
@@ -1027,7 +944,6 @@ def show_landing():
     .stApp::before { display: none !important; }
     </style>""", unsafe_allow_html=True)
 
-
     col1, col2, col3 = st.columns([3, 2, 9])
     with col2:
         st.markdown("<div style='margin-top: 30vh;'></div>", unsafe_allow_html=True)
@@ -1038,9 +954,6 @@ def show_landing():
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
-
-
-
 
 # ============================================================
 # PAGE: LOGIN
@@ -1058,7 +971,6 @@ def show_login():
     ::-webkit-scrollbar { display: none; }
     </style>""", unsafe_allow_html=True)
 
-
     logo_b64  = file_to_b64(ACTUAL_LOGO)
     logo_html = (
         f'<div style="display:flex;justify-content:center;margin-bottom:16px;">'
@@ -1067,7 +979,6 @@ def show_login():
         f'border:3px solid #4CAF50;object-fit:cover;'
         f'box-shadow:0 0 28px rgba(76,175,80,0.5);"/></div>'
     ) if logo_b64 else ""
-
 
     st.markdown(
         f'<div style="display:flex;flex-direction:column;align-items:center;margin-top:-90px;">'
@@ -1094,14 +1005,10 @@ def show_login():
                 else:
                     st.error("Invalid email or password")
 
-
         if st.button("← Back to Landing", use_container_width=True, key="back_btn"):
             st.session_state.page = "landing"
             st.rerun()
     st.stop()
-
-
-
 
 # ============================================================
 # ROUTING
@@ -1109,17 +1016,20 @@ def show_login():
 if st.session_state.page == "landing":
     show_landing()
 
-
 if st.session_state.page == "login":
     show_login()
-
 
 if not st.session_state.logged_in and st.session_state.page == "dashboard":
     st.session_state.page = "login"
     st.rerun()
 
-
-
+# ============================================================
+# CONDITIONAL CSS INJECTION (only when logged in)
+# ============================================================
+if st.session_state.logged_in:
+    st.markdown(DASHBOARD_CSS, unsafe_allow_html=True)
+else:
+    st.markdown(RESET_CSS, unsafe_allow_html=True)
 
 # ============================================================
 # DATA FUNCTIONS
@@ -1132,9 +1042,6 @@ def load_assets():
         return model, scaler
     except Exception:
         return None, None
-
-
-
 
 @st.cache_resource
 def get_sheet():
@@ -1155,9 +1062,6 @@ def get_sheet():
         st.error(f"Database Connection Error: {e}")
         return None
 
-
-
-
 @st.cache_data(ttl=30)
 def get_latest_readings():
     """Latest sensor readings per plant (all plant_id > 0 rows)."""
@@ -1169,9 +1073,6 @@ def get_latest_readings():
     # Only real plant rows (plant_id 1–8)
     df = df[df['plant_id'] > 0]
     return df.sort_values('timestamp').groupby('plant_id').last().reset_index()
-
-
-
 
 @st.cache_data(ttl=60)
 def get_historical_data(plant_id=None, hours=24):
@@ -1185,9 +1086,6 @@ def get_historical_data(plant_id=None, hours=24):
     if plant_id is not None:
         df = df[df['plant_id'] == plant_id]
     return df.sort_values('timestamp')
-
-
-
 
 @st.cache_data(ttl=30)
 def get_latest_plant_image() -> dict:
@@ -1209,15 +1107,11 @@ def get_latest_plant_image() -> dict:
         "timestamp": pd.to_datetime(row['timestamp']).strftime("%b %d, %Y · %I:%M %p"),
     }
 
-
-
-
 # ============================================================
 # SIDEBAR
 # ============================================================
 sheet    = get_sheet()
 logo_b64 = file_to_b64(ACTUAL_LOGO)
-
 
 with st.sidebar:
     st.markdown(
@@ -1243,7 +1137,6 @@ with st.sidebar:
         f'text-align:center; padding:0 2px; margin-bottom:2px;">Navigation</div>',
         unsafe_allow_html=True)
 
-
     nav_opts = (
         ["Live Dashboard", "Analysis", "System Logs", "Users"]
         if st.session_state.role == "admin"
@@ -1258,15 +1151,11 @@ with st.sidebar:
     }
     page = page_map.get(raw_page, "DASHBOARD")
 
-
     if st.button("Logout", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.role      = None
         st.session_state.page      = "landing"
         st.rerun()
-
-
-
 
 # ============================================================
 # SHARED DATA + THRESHOLDS
@@ -1274,18 +1163,13 @@ with st.sidebar:
 model,  scaler = load_assets()
 latest         = get_latest_readings()
 
-
 PH_LOW,   PH_HIGH   = 5.5, 7.0
 SOIL_DRY, SOIL_WET  = 30,  85
 TEMP_LOW, TEMP_HIGH = 15,  35
 HUM_LOW,  HUM_HIGH  = 50,  90
 
-
 # Auto-refresh every 30 seconds
 st_autorefresh(interval=30000, key="autorefresh")
-
-
-
 
 # ============================================================
 # PAGE: LIVE DASHBOARD
@@ -1299,23 +1183,19 @@ if page == "DASHBOARD":
         'Greenhouse Overview — AgriBot-AI</div>'
         '</div>', unsafe_allow_html=True)
 
-
     if latest.empty:
         st.warning("No sensor data yet — waiting for the Pi...")
         st.stop()
-
 
     avg_temp = float(latest['temp_c'].mean())
     avg_hum  = float(latest['humidity'].mean())
     avg_ph   = float(latest['ph'].mean())
     avg_soil = float(latest['soil_moisture'].mean())
 
-
     # ── Metric cards ──────────────────────────────────────────
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("TEMP",     f"{avg_temp:.1f} °C")
     m2.metric("HUMIDITY", f"{avg_hum:.0f} %")
-
 
     ph_lbl, ph_cls = ph_label(avg_ph)
     with m3:
@@ -1329,13 +1209,10 @@ if page == "DASHBOARD":
             f'</div>',
             unsafe_allow_html=True)
 
-
     m4.metric("SOIL", f"{avg_soil:.0f} %")
-
 
     img_data = get_latest_plant_image()
     cam_col, right_col = st.columns([3, 2], gap="small")
-
 
     # ── Plant Health Feed ─────────────────────────────────────
     with cam_col:
@@ -1343,13 +1220,11 @@ if page == "DASHBOARD":
         st.markdown('<div class="section-title">📷 Plant Health Feed</div>',
                     unsafe_allow_html=True)
 
-
         if img_data.get("url"):
             file_id = _get_file_id_from_url(img_data["url"])
             pil_img = fetch_drive_image_private(file_id) if file_id else None
             if pil_img is None:
                 pil_img = fetch_drive_image(img_data["url"])
-
 
             if pil_img:
                 st.image(pil_img, use_container_width=True)
@@ -1361,7 +1236,6 @@ if page == "DASHBOARD":
                     'Image could not be loaded.<br>'
                     'Check Drive sharing permissions or credentials.json.</div>'
                     '</div>', unsafe_allow_html=True)
-
 
             pid_txt = f"🥬 Plant {img_data['plant_id']}" if img_data.get("plant_id") else ""
             ts_txt  = f"🕒 {img_data['timestamp']}"       if img_data.get("timestamp") else ""
@@ -1387,7 +1261,6 @@ if page == "DASHBOARD":
                 '</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-
     # ── Right column: AI Greenhouse Summary ───────────────────
     with right_col:
         if not latest.empty:
@@ -1397,17 +1270,12 @@ if page == "DASHBOARD":
                 f'margin-bottom:6px;">🔄 {last_ts.strftime("%H:%M:%S")}</div>',
                 unsafe_allow_html=True)
 
-
         st.markdown('<div class="section-title">🤖 AI Greenhouse Summary</div>',
                     unsafe_allow_html=True)
-
 
         # Pass full dataframe — render function finds latest non-blank ai_summary
         all_df = safe_read_sheet(sheet) if sheet else pd.DataFrame()
         render_greenhouse_summary_panel(all_df)
-
-
-
 
 # ============================================================
 # PAGE: ANALYSIS
@@ -1420,11 +1288,9 @@ elif page == "ANALYSIS":
         'Sensor data over time</div></div>',
         unsafe_allow_html=True)
 
-
     if latest.empty:
         st.warning("No data available yet.")
         st.stop()
-
 
     sc1, sc2 = st.columns([1, 1])
     with sc1:
@@ -1434,7 +1300,6 @@ elif page == "ANALYSIS":
         time_range = st.selectbox("Range", ["24 hours", "7 days", "30 days"])
         hours = {"24 hours": 24, "7 days": 168, "30 days": 720}[time_range]
 
-
     col_map = {
         "Temperature (°C)": ("temp_c",       "°C"),
         "Humidity (%)":     ("humidity",      "%"),
@@ -1443,14 +1308,12 @@ elif page == "ANALYSIS":
     }
     y_col, y_label = col_map[sensor_choice]
 
-
     if sensor_choice == "Soil Moisture (%)":
         plant_sel = st.selectbox(
             "Select Plant", list(range(1, 11)),
             format_func=lambda x: f"Plant {x}")
         hist_df = get_historical_data(plant_id=plant_sel, hours=hours)
         chart_title = f"Soil Moisture — Plant {plant_sel}"
-
 
         if not hist_df.empty:
             fig = px.line(hist_df, x='timestamp', y=y_col, title=chart_title)
@@ -1466,10 +1329,8 @@ elif page == "ANALYSIS":
         else:
             st.warning("No data for this plant in the selected time range.")
 
-
         st.markdown('<div class="section-title">🌱 All Plants — Current Soil Moisture</div>',
                     unsafe_allow_html=True)
-
 
         soil_rows = []
         for _, row in latest.iterrows():
@@ -1480,7 +1341,6 @@ elif page == "ANALYSIS":
                           else ("Wet" if float(row['soil_moisture']) > SOIL_WET else "OK")
             })
         soil_df = pd.DataFrame(soil_rows)
-
 
         bar = px.bar(
             soil_df, x='Plant', y='Soil %',
@@ -1497,11 +1357,9 @@ elif page == "ANALYSIS":
         )
         st.plotly_chart(bar, use_container_width=True)
 
-
     else:
         hist_df = get_historical_data(plant_id=None, hours=hours)
         chart_title = f"{sensor_choice} — Greenhouse Overall"
-
 
         if not hist_df.empty:
             overall = (
@@ -1511,9 +1369,7 @@ elif page == "ANALYSIS":
                 .sort_values('timestamp')
             )
 
-
             fig = px.line(overall, x='timestamp', y=y_col, title=chart_title)
-
 
             if sensor_choice == "pH":
                 fig.add_hline(y=5.5, line_dash="dot", line_color="#ef9a9a",
@@ -1528,7 +1384,6 @@ elif page == "ANALYSIS":
                               line_width=0, annotation_text="Optimal zone",
                               annotation_font_color="#66bb6a")
 
-
             fig.update_layout(
                 height=210, margin=dict(t=32, b=20, l=30, r=10),
                 yaxis_title=y_label,
@@ -1541,9 +1396,6 @@ elif page == "ANALYSIS":
         else:
             st.warning("No data in the selected time range.")
 
-
-
-
 # ============================================================
 # PAGE: SYSTEM LOGS
 # ============================================================
@@ -1555,11 +1407,8 @@ elif page == "LOGS":
         'Last 24 hours</div></div>',
         unsafe_allow_html=True)
 
-
     logs = get_historical_data(plant_id=None, hours=24)
     if not logs.empty:
-
-
         def extract_status_only(ai_str):
             """Extract a short status + disease label from ai_status column.
             CHANGED: Also shows the Disease field when a disease is detected,
@@ -1593,7 +1442,6 @@ elif page == "LOGS":
 
             return label
 
-
         def extract_summary_flag(ai_summary_str):
             """Show a flag in logs if this row has the overall ai_summary written."""
             if not ai_summary_str or str(ai_summary_str).strip() in ("", "nan"):
@@ -1618,18 +1466,15 @@ elif page == "LOGS":
                 return f"🏡 {icons.get(status,'')} {status}"
             return "🏡 Summary"
 
-
         logs['ai_result']  = logs['ai_status'].apply(extract_status_only) \
                              if 'ai_status' in logs.columns else ""
         logs['summary_flag'] = logs['ai_summary'].apply(extract_summary_flag) \
                                if 'ai_summary' in logs.columns else ""
 
-
         display_cols = ['timestamp', 'plant_id', 'temp_c', 'humidity',
                         'soil_moisture', 'ph', 'ai_result', 'summary_flag']
         if 'image_url' in logs.columns:
             display_cols.insert(-2, 'image_url')
-
 
         cfg = {
             "timestamp":    st.column_config.TextColumn("Time"),
@@ -1643,7 +1488,6 @@ elif page == "LOGS":
             "image_url":    st.column_config.LinkColumn("📸 Image"),
         }
 
-
         display_cols = [c for c in display_cols if c in logs.columns]
         st.dataframe(
             logs[display_cols].sort_values('timestamp', ascending=False),
@@ -1653,9 +1497,6 @@ elif page == "LOGS":
         )
     else:
         st.info("No logs available for the last 24 hours.")
-
-
-
 
 # ============================================================
 # PAGE: USER MANAGEMENT
@@ -1667,7 +1508,6 @@ elif page == "USERS":
         '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
         'Registered accounts</div></div>',
         unsafe_allow_html=True)
-
 
     st.table(pd.DataFrame({
         "Username": ["admin@agribot.ai", "user@agribot.ai"],
