@@ -924,18 +924,39 @@ def render_plant_detail_panel(all_df: pd.DataFrame, plant_id: int):
     disease_badge_cls = "disease-healthy" if disease_is_healthy else "disease-detected"
     disease_label     = "No Disease" if disease_is_healthy else disease_name
 
-    findings = [
-        ("Image",         parsed.get('finding_image',    'N/A')),
-        ("Soil Moisture", parsed.get('finding_soil',     'N/A')),
-        ("Temperature",   parsed.get('finding_temp',     'N/A')),
-        ("Humidity",      parsed.get('finding_humidity', 'N/A')),
-        ("pH Level",      parsed.get('finding_ph',       'N/A')),
+    # ── Per-plant sensors (each plant has its OWN sensor) ────
+    per_plant_findings = [
+        ("Image",         parsed.get('finding_image', 'N/A')),
+        ("Soil Moisture", parsed.get('finding_soil',  'N/A')),
     ]
+    # ── Shared greenhouse sensors (ONE unit for all plants) ──
+    # Shown here in context of Gemini's analysis for this plant,
+    # but clearly labelled so it is NOT mistaken for per-plant hardware.
+    shared_findings = [
+        ("Temperature",  parsed.get('finding_temp',     'N/A')),
+        ("Humidity",     parsed.get('finding_humidity', 'N/A')),
+        ("pH Level",     parsed.get('finding_ph',       'N/A')),
+    ]
+
     findings_html = ""
-    for lbl, val in findings:
+    # Per-plant rows (no extra label needed)
+    for lbl, val in per_plant_findings:
         findings_html += (
             f'<div class="plant-detail-row">'
             f'<span class="plant-detail-label">{lbl}</span>'
+            f'<span class="plant-detail-value {_finding_class(val)}">{val}</span>'
+            f'</div>'
+        )
+    # Divider + shared-sensor block with a clear note
+    findings_html += (
+        f'<div style="font-size:8px;color:#555;letter-spacing:0.5px;'
+        f'text-transform:uppercase;margin:5px 0 3px;border-top:1px solid rgba(255,255,255,0.06);'
+        f'padding-top:4px;">Greenhouse-wide sensors (shared — 1 unit for all plants)</div>'
+    )
+    for lbl, val in shared_findings:
+        findings_html += (
+            f'<div class="plant-detail-row">'
+            f'<span class="plant-detail-label" style="color:#6a9b6c;">{lbl}</span>'
             f'<span class="plant-detail-value {_finding_class(val)}">{val}</span>'
             f'</div>'
         )
