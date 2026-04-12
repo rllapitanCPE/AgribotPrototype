@@ -770,6 +770,113 @@ def _finding_class(value_str: str) -> str:
 
 
 # ============================================================
+# DATA FRESHNESS HELPER
+# Returns a human-readable string + color for how old the
+# most recent sensor reading is (answers panelist question:
+# "how do I know this data is current?").
+# ============================================================
+def get_data_freshness(all_df: pd.DataFrame) -> tuple:
+    """Returns (label, color) e.g. ('2 min ago', '#81c784')"""
+    if all_df.empty or 'timestamp' not in all_df.columns:
+        return ("No data", "#888")
+    try:
+        latest_ts = pd.to_datetime(all_df['timestamp']).max()
+        diff_secs = (datetime.now() - latest_ts).total_seconds()
+        if diff_secs < 0:
+            diff_secs = 0
+        if diff_secs < 90:
+            return (f"{int(diff_secs)}s ago", "#81c784")
+        elif diff_secs < 3600:
+            return (f"{int(diff_secs // 60)}m ago", "#81c784")
+        elif diff_secs < 7200:
+            return (f"{int(diff_secs // 3600)}h ago", "#ffb74d")
+        else:
+            return (f"{int(diff_secs // 3600)}h ago — check Pi", "#ef9a9a")
+    except Exception:
+        return ("Unknown", "#888")
+
+
+# ============================================================
+# PLANT STATUS GRID
+# Shows ALL plants as colour-coded mini-cards so panelists
+# can instantly see which plants need attention.
+# Answers: "Why per-plant if you have the overall summary?"
+#   → Overall = executive view.  Grid = actionable: which
+#     physical bed does the farmer walk to?
+# Answers: "What if you have more than 8 plants?"
+#   → num_plants is derived from actual data, not hardcoded.
+# ============================================================
+def render_plant_status_grid(all_df: pd.DataFrame, num_plants: int) -> int:
+    """
+    Renders a 4-column mini-grid of all plant statuses.
+    Returns the plant_id the user has selected for drill-down.
+    """
+    # Build status + disease lookup from latest ai_status per plant
+    status_map  = {}
+    disease_map = {}
+
+    if not all_df.empty and 'ai_status' in all_df.columns:
+        for pid in range(1, num_plants + 1):
+            pf = all_df[
+                (all_df['plant_id'] == pid) &
+                (all_df['ai_status'].astype(str)
+                    .str.strip()
+                    .replace({'nan': '', 'Wait for Batch...': ''}) != '')
+            ]
+            if not pf.empty:
+                parsed = parse_ai_status(str(pf.sort_values('timestamp').iloc[-1]['ai_status']))
+                if parsed and not parsed.get('__pending__'):
+                    status_map[pid]  = parsed.get('status', 'Unknown')
+                    disease_map[pid] = not parsed.get('disease_is_healthy', True)
+
+    # Colour palette per status
+    PALETTE = {
+        'Healthy':  ('#1b5e20', '#81c784', '✅'),
+        'Warning':  ('#4a3000', '#ffb74d', '⚠'),
+        'Critical': ('#4a0000', '#ef9a9a', '!'),
+        'Unknown':  ('#0d1f30', '#90CAF9', '?'),
+    }
+
+    if 'selected_plant' not in st.session_state:
+        st.session_state.selected_plant = 1
+
+    # Build the visual grid (HTML — purely informational)
+    cols_per_row = 4
+    rows = (num_plants + cols_per_row - 1) // cols_per_row
+    grid_html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px;">'
+    for pid in range(1, num_plants + 1):
+        status      = status_map.get(pid, 'Unknown')
+        has_disease = disease_map.get(pid, False)
+        bg, fg, ico = PALETTE.get(status, PALETTE['Unknown'])
+        is_sel      = (pid == st.session_state.selected_plant)
+        border      = '2px solid #4CAF50' if is_sel else '1px solid rgba(255,255,255,0.12)'
+        dis_dot     = ' 🦠' if has_disease else ''
+        grid_html += (
+            f'<div style="background:{bg};border:{border};border-radius:6px;'
+            f'padding:5px 2px;text-align:center;">'
+            f'<div style="font-size:10px;font-weight:700;color:{fg};">P{pid}{dis_dot}</div>'
+            f'<div style="font-size:9px;color:{fg};opacity:0.9;">{ico} {status[:4] if status != "Unknown" else "—"}</div>'
+            f'</div>'
+        )
+    grid_html += '</div>'
+    st.markdown(grid_html, unsafe_allow_html=True)
+
+    # Selectbox for drill-down — dynamically built from num_plants
+    options = [f"Plant {i}" for i in range(1, num_plants + 1)]
+    default_idx = max(0, st.session_state.selected_plant - 1)
+    chosen = st.selectbox(
+        "Select plant to inspect",
+        options,
+        index=default_idx,
+        label_visibility="collapsed",
+        key="plant_selector"
+    )
+    selected_id = int(chosen.split(" ")[1])
+    st.session_state.selected_plant = selected_id
+    return selected_id
+
+
+# ============================================================
 # PER-PLANT DETAIL PANEL  (NEW)
 # Shows on the dashboard when user selects a plant from the
 # dropdown. Reads ai_status from the latest row for that plant.
@@ -1297,6 +1404,11 @@ with st.sidebar:
         st.session_state.page      = "landing"
         st.rerun()
 
+    st.markdown('<div style="margin-top:8px;"></div>', unsafe_allow_html=True)
+    if st.button("🔄 Refresh Data", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
 
 # ============================================================
 # SHARED DATA + THRESHOLDS
@@ -1395,30 +1507,59 @@ if page == "DASHBOARD":
                 '<span class="sched-badge">5:00 PM</span></div>'
                 '</div>', unsafe_allow_html=True)
 
-        # ── NEW: Per-plant selector ───────────────────────────
+        # ── Per-plant status grid + detail ───────────────────
         st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title">🌱 Per-Plant AI Detail</div>',
+        st.markdown('<div class="section-title">🌱 Plant Status Overview</div>',
                     unsafe_allow_html=True)
-        plant_options = [f"Plant {i}" for i in range(1, 9)]
-        selected_plant_label = st.selectbox(
-            "Select plant to inspect",
-            plant_options,
-            label_visibility="collapsed",
-            key="plant_selector"
+
+        # Derive plant count from real data — not hardcoded.
+        # This answers "what if you have more than 8 plants?":
+        # the grid and selector expand automatically.
+        num_plants = (
+            int(all_df['plant_id'].max())
+            if not all_df.empty and 'plant_id' in all_df.columns
+               and all_df['plant_id'].notna().any()
+            else 8
         )
-        selected_plant_id = int(selected_plant_label.split(" ")[1])
+
+        selected_plant_id = render_plant_status_grid(all_df, num_plants)
+
+        st.markdown(
+            '<div style="font-size:9px;color:#555;margin:-4px 0 4px;">'
+            'Grid shows latest AI status per plant · select any plant to inspect</div>',
+            unsafe_allow_html=True)
+
+        st.markdown('<div class="section-title" style="margin-top:4px;">🔍 Plant Detail</div>',
+                    unsafe_allow_html=True)
         render_plant_detail_panel(all_df, selected_plant_id)
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Right column: AI Greenhouse Summary ───────────────────
     with right_col:
-        if not latest.empty:
-            last_ts = pd.to_datetime(latest['timestamp']).max()
-            st.markdown(
-                f'<div style="text-align:right;font-size:9px;color:#388e3c;'
-                f'margin-bottom:6px;">🔄 {last_ts.strftime("%H:%M:%S")}</div>',
-                unsafe_allow_html=True)
+        # Data freshness indicator — answers "how current is this?"
+        fresh_label, fresh_color = get_data_freshness(all_df)
+        last_ai_ts = ""
+        if not all_df.empty and 'ai_summary' in all_df.columns:
+            ai_rows = all_df[
+                all_df['ai_summary'].astype(str).str.strip().replace('nan', '') != ''
+            ]
+            if not ai_rows.empty:
+                last_ai_ts = pd.to_datetime(
+                    ai_rows['timestamp']).max().strftime("%b %d · %I:%M %p")
+
+        st.markdown(
+            f'<div style="display:flex;justify-content:space-between;'
+            f'align-items:center;margin-bottom:6px;">'
+            f'<span style="font-size:9px;color:{fresh_color};">'
+            f'🔄 Sensors: <b>{fresh_label}</b></span>'
+            + (
+                f'<span style="font-size:9px;color:#555;">'
+                f'Last AI: {last_ai_ts}</span>'
+                if last_ai_ts else ''
+            ) +
+            f'</div>',
+            unsafe_allow_html=True)
 
         st.markdown('<div class="section-title">🤖 AI Greenhouse Summary</div>',
                     unsafe_allow_html=True)
