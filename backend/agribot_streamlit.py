@@ -731,19 +731,31 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
         return m.group(1).strip() if m else default
 
     result = {}
-    result['status']          = _find(r'Status:\s*(Healthy|Warning|Critical|Unknown)', "Unknown")
-    result['finding_image']   = _find(r'\*\s*Image\s*:\s*(.+)')
-    result['finding_soil']    = _find(r'\*\s*Soil Moisture\s*:\s*(.+)')
-    result['finding_temp']    = _find(r'\*\s*Temperature\s*:\s*(.+)')
-    result['finding_humidity']= _find(r'\*\s*Humidity\s*:\s*(.+)')
-    result['finding_ph']      = _find(r'\*\s*pH Level\s*:\s*(.+)')
-    result['critical_plants'] = _find(r'Critical Plants:\s*(.+)', "")
-    result['warning_plants']  = _find(r'Warning Plants\s*:\s*(.+)', "")
+    result['status']           = _find(r'Status:\s*(Healthy|Warning|Critical|Unknown)', "Unknown")
+    result['finding_image']    = _find(r'\*\s*Image\s*:\s*(.+)')
+    result['finding_disease']  = _find(r'\*\s*Disease\s*:\s*(.+)', "None detected")
+    result['finding_soil']     = _find(r'\*\s*Soil Moisture\s*:\s*(.+)')
+    result['finding_temp']     = _find(r'\*\s*Temperature\s*:\s*(.+)')
+    result['finding_humidity'] = _find(r'\*\s*Humidity\s*:\s*(.+)')
+    result['finding_ph']       = _find(r'\*\s*pH Level\s*:\s*(.+)')
+    result['critical_plants']  = _find(r'Critical Plants:\s*(.+)', "")
+    result['warning_plants']   = _find(r'Warning Plants\s*:\s*(.+)', "")
+
+    # Per-plant recommendations block (lines like "P1 (Critical): ...")
     rec_m = re.search(r'Recommendation:\s*\n([\s\S]+?)(?=\n\nSMS:|\nSMS:|\Z)', s)
     if rec_m:
-        result['recommendation'] = " ".join(
-            ln.lstrip() for ln in rec_m.group(1).splitlines() if ln.strip())
+        raw_rec = rec_m.group(1).strip()
+        # Check if it contains per-plant lines (P1 (Critical): ...)
+        per_plant_lines = re.findall(r'(P\d+\s*\(\w+\)\s*:.+)', raw_rec)
+        if per_plant_lines:
+            result['per_plant_recs'] = per_plant_lines
+            result['recommendation'] = "\n".join(per_plant_lines)
+        else:
+            result['per_plant_recs'] = []
+            result['recommendation'] = " ".join(
+                ln.lstrip() for ln in raw_rec.splitlines() if ln.strip())
     else:
+        result['per_plant_recs'] = []
         result['recommendation'] = _find(r'Recommendation:\s*(.+)', "N/A")
     result['sms_line'] = _find(r'SMS:\s*(.+)', "")
     return result
@@ -812,13 +824,14 @@ def render_plant_detail_panel(all_df: pd.DataFrame, plant_id: int):
         ("Humidity",      parsed.get('finding_humidity', 'N/A')),
         ("pH Level",      parsed.get('finding_ph',       'N/A')),
     ]
-    findings_html = "".join(
-        f'<div class="plant-detail-row">'
-        f'<span class="plant-detail-label">{lbl}</span>'
-        f'<span class="plant-detail-value {_finding_class(val)}">{val}</span>'
-        f'</div>'
-        for lbl, val in findings
-    )
+    findings_html = ""
+    for lbl, val in findings:
+        findings_html += (
+            f'<div class="plant-detail-row">'
+            f'<span class="plant-detail-label">{lbl}</span>'
+            f'<span class="plant-detail-value {_finding_class(val)}">{val}</span>'
+            f'</div>'
+        )
 
     rec      = parsed.get('recommendation', 'N/A')
     sms_sent = parsed.get('sms_sent', 'No')
@@ -973,21 +986,53 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
     if not tally_html and status == "Healthy":
         tally_html = '<span class="tally-pill tally-healthy">✅ All plants healthy</span>'
 
+    # Disease badge for overall summary
+    disease_val = parsed.get('finding_disease', 'None detected')
+    disease_is_ok = ('none detected' in disease_val.lower() or disease_val == 'N/A')
+    disease_cls   = 'disease-healthy' if disease_is_ok else 'disease-detected'
+    disease_icon  = '✅' if disease_is_ok else '🦠'
+
     findings = [
         ("Image",         parsed.get('finding_image',    'N/A')),
+        ("Disease",       disease_val),
         ("Soil Moisture", parsed.get('finding_soil',     'N/A')),
         ("Temperature",   parsed.get('finding_temp',     'N/A')),
         ("Humidity",      parsed.get('finding_humidity', 'N/A')),
         ("pH Level",      parsed.get('finding_ph',       'N/A')),
     ]
-    findings_html = "".join(
-        f'<div class="gh-finding-row">'
-        f'<span class="gh-finding-label">{lbl}</span>'
-        f'<span class="gh-finding-value {_finding_class(val)}">{val}</span>'
-        f'</div>'
-        for lbl, val in findings
-    )
-    rec      = parsed.get('recommendation', 'N/A')
+    findings_html = ""
+    for lbl, val in findings:
+        if lbl == "Disease":
+            findings_html += (
+                f'<div class="gh-finding-row">'
+                f'<span class="gh-finding-label">Disease</span>'
+                f'<span class="gh-finding-value"><span class="disease-badge {disease_cls}">'
+                f'{disease_icon} {val}</span></span>'
+                f'</div>'
+            )
+        else:
+            findings_html += (
+                f'<div class="gh-finding-row">'
+                f'<span class="gh-finding-label">{lbl}</span>'
+                f'<span class="gh-finding-value {_finding_class(val)}">{val}</span>'
+                f'</div>'
+            )
+
+    # Per-plant recommendations
+    per_plant_recs = parsed.get('per_plant_recs', [])
+    if per_plant_recs:
+        recs_html = "".join(
+            f'<div class="gh-rec-item">'
+            f'<span class="gh-rec-bullet">▸</span><span>{ln}</span></div>'
+            for ln in per_plant_recs
+        )
+    else:
+        rec = parsed.get('recommendation', 'N/A')
+        recs_html = (
+            f'<div class="gh-rec-item">'
+            f'<span class="gh-rec-bullet">▸</span><span>{rec}</span></div>'
+        ) if rec and rec != 'N/A' else '<div style="font-size:10px;color:#888;">No recommendations.</div>'
+
     sms_line = parsed.get('sms_line', '')
     sms_html = (
         f'<div style="margin-top:8px;padding:6px 8px;'
@@ -1011,8 +1056,9 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         f'{findings_html}</div>'
         f'<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
         f'<div style="font-size:9px;font-weight:700;color:#66bb6a;'
-        f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">RECOMMENDATION</div>'
-        f'<div style="font-size:10px;color:#e8f5e9;line-height:1.7;">{rec}</div></div>'
+        f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
+        f'RECOMMENDATION</div>'
+        f'{recs_html}</div>'
         f'{sms_html}'
         f'</div>', unsafe_allow_html=True)
 
