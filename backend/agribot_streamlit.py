@@ -806,7 +806,7 @@ def get_data_freshness(all_df: pd.DataFrame) -> tuple:
 # Answers: "What if you have more than 8 plants?"
 #   → num_plants is derived from actual data, not hardcoded.
 # ============================================================
-def render_plant_status_grid(all_df: pd.DataFrame, num_plants: int) -> int:
+def render_plant_status_grid(all_df: pd.DataFrame, num_plants: int):
     """
     Renders a 4-column mini-grid of all plant statuses.
     Returns the plant_id the user has selected for drill-down.
@@ -860,20 +860,8 @@ def render_plant_status_grid(all_df: pd.DataFrame, num_plants: int) -> int:
         )
     grid_html += '</div>'
     st.markdown(grid_html, unsafe_allow_html=True)
-
-    # Selectbox for drill-down — dynamically built from num_plants
-    options = [f"Plant {i}" for i in range(1, num_plants + 1)]
-    default_idx = max(0, st.session_state.selected_plant - 1)
-    chosen = st.selectbox(
-        "Select plant to inspect",
-        options,
-        index=default_idx,
-        label_visibility="collapsed",
-        key="plant_selector"
-    )
-    selected_id = int(chosen.split(" ")[1])
-    st.session_state.selected_plant = selected_id
-    return selected_id
+    # Grid is visual-only — the selectbox lives in the left column
+    # so there is only one widget with key="plant_selector".
 
 
 # ============================================================
