@@ -1528,14 +1528,12 @@ if page == "DASHBOARD":
                 '<span class="sched-badge">5:00 PM</span></div>'
                 '</div>', unsafe_allow_html=True)
 
-        # ── Per-plant status grid + detail ───────────────────
+        # ── Plant selector + detail (left col: visual + drill-down only) ──
         st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title">🌱 Plant Status Overview</div>',
+        st.markdown('<div class="section-title">🔍 Plant Detail</div>',
                     unsafe_allow_html=True)
 
-        # Derive plant count from real data — not hardcoded.
-        # This answers "what if you have more than 8 plants?":
-        # the grid and selector expand automatically.
+        # num_plants derived from data so the selector scales automatically
         num_plants = (
             int(all_df['plant_id'].max())
             if not all_df.empty and 'plant_id' in all_df.columns
@@ -1543,22 +1541,25 @@ if page == "DASHBOARD":
             else 8
         )
 
-        selected_plant_id = render_plant_status_grid(all_df, num_plants)
-
-        st.markdown(
-            '<div style="font-size:9px;color:#555;margin:-4px 0 4px;">'
-            'Grid shows latest AI status per plant · select any plant to inspect</div>',
-            unsafe_allow_html=True)
-
-        st.markdown('<div class="section-title" style="margin-top:4px;">🔍 Plant Detail</div>',
-                    unsafe_allow_html=True)
+        if 'selected_plant' not in st.session_state:
+            st.session_state.selected_plant = 1
+        options = [f"Plant {i}" for i in range(1, num_plants + 1)]
+        chosen = st.selectbox(
+            "Select plant to inspect",
+            options,
+            index=max(0, st.session_state.selected_plant - 1),
+            label_visibility="collapsed",
+            key="plant_selector"
+        )
+        selected_plant_id = int(chosen.split(" ")[1])
+        st.session_state.selected_plant = selected_plant_id
         render_plant_detail_panel(all_df, selected_plant_id)
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Right column: AI Greenhouse Summary ───────────────────
+    # ── Right column: freshness + AI Summary + Plant Status Grid ─
     with right_col:
-        # Data freshness indicator — answers "how current is this?"
+        # Data freshness indicator
         fresh_label, fresh_color = get_data_freshness(all_df)
         last_ai_ts = ""
         if not all_df.empty and 'ai_summary' in all_df.columns:
@@ -1585,6 +1586,21 @@ if page == "DASHBOARD":
         st.markdown('<div class="section-title">🤖 AI Greenhouse Summary</div>',
                     unsafe_allow_html=True)
         render_greenhouse_summary_panel(all_df)
+
+        # Plant Status Overview sits below the greenhouse summary —
+        # both are "summary" views so they belong in the same column.
+        # The grid shows which specific plants are affected, drilling
+        # one level deeper than the overall status above it.
+        st.markdown(
+            '<div style="margin-top:8px;">'
+            '<div class="section-title">🌱 Plant Status Overview</div>',
+            unsafe_allow_html=True)
+        render_plant_status_grid(all_df, num_plants)
+        st.markdown(
+            '<div style="font-size:9px;color:#555;margin:-2px 0 4px;">'
+            'Select a plant on the left to inspect its detail</div>'
+            '</div>',
+            unsafe_allow_html=True)
 
 
 # ============================================================
