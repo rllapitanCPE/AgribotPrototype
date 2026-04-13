@@ -72,9 +72,10 @@ st.set_page_config(
 )
 
 # ============================================================
-# RESPONSIVE CSS  — replaces OPTIMIZED_CSS
+# CSS SPLIT: BASE (always safe) + SIDEBAR (only when logged in)
 # ============================================================
-RESPONSIVE_CSS = """
+
+BASE_CSS = """
 <style>
 /* ══════════════════════════════════════════════
    CSS CUSTOM PROPERTIES  (dark = default)
@@ -224,103 +225,6 @@ button[kind="headerNoSpacing"], a[href*="streamlit.io"],
 .viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
 #GithubIcon, .css-1dp5vir {
     display: none !important; visibility: hidden !important;
-}
-
-/* ══════════════════════════════════════════════
-   SIDEBAR — DESKTOP
-   ══════════════════════════════════════════════ */
-section[data-testid="stSidebar"] {
-    width: var(--sidebar-w) !important;
-    min-width: var(--sidebar-w) !important;
-    max-width: var(--sidebar-w) !important;
-    position: fixed !important; left: 0 !important;
-    background: var(--bg-sidebar) !important;
-    border-right: 1px solid var(--border-sidebar) !important;
-    overflow: hidden !important; height: 100vh !important;
-    padding-top: 0 !important; transition: none !important;
-    animation: none !important; transform: none !important;
-    z-index: 999;
-}
-[data-testid="stAppViewContainer"] { margin-left: var(--sidebar-w) !important; }
-[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-    display: flex !important; flex-direction: column !important;
-    align-items: center !important; padding: 0 4px 4px !important;
-}
-[data-testid="stSidebar"] [data-testid="stElementToolbar"] { display: none !important; }
-[data-testid="stSidebarResizer"],
-section[data-testid="stSidebar"] > div:last-child { display: none !important; }
-section[data-testid="stSidebar"] > div:first-child > div:first-child {
-    display: none !important; height: 0 !important;
-}
-[data-testid="collapsedControl"],
-button[title="Collapse sidebar"],
-button[aria-label="Collapse sidebar"] {
-    display: none !important; opacity: 0 !important;
-    pointer-events: none !important; width: 0 !important; height: 0 !important;
-}
-
-/* Nav radio */
-.stRadio > div {
-    gap: 20px !important; width: 100% !important;
-    flex-direction: column !important; margin-bottom: 8px !important;
-}
-section[data-testid="stSidebar"] .stRadio label {
-    font-size: var(--fs-nav-btn) !important; font-weight: 700 !important;
-    color: #ffffff !important; letter-spacing: 0.8px !important;
-    text-transform: uppercase !important; background: var(--bg-btn-nav) !important;
-    border: none !important; border-radius: 8px !important;
-    padding: 6px 8px !important; width: 100% !important;
-    cursor: pointer !important; transition: all 0.2s !important;
-    min-height: var(--touch-min) !important;
-    display: flex !important; align-items: center !important;
-    margin-top: -15px !important;
-}
-section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] > div:first-child {
-    display: none !important;
-}
-section[data-testid="stSidebar"] .stRadio label:hover {
-    background: var(--bg-btn-hover) !important; color: #ffffff !important;
-}
-section[data-testid="stSidebar"] div[role="radiogroup"]
-label[data-baseweb="radio"]:has(input:checked) {
-    background: rgba(46,125,50,0.22) !important;
-    border-left: 3px solid #4CAF50 !important;
-    color: #ffffff !important; padding-left: 9px !important;
-}
-section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
-    margin: 0 !important; color: #ffffff !important;
-    font-size: var(--fs-nav-btn) !important;
-}
-
-/* Sidebar buttons */
-[data-testid="stSidebar"] .stButton > button {
-    font-size: var(--fs-nav-btn) !important; font-weight: 700 !important;
-    color: #ffffff !important; letter-spacing: 0.8px !important;
-    text-transform: uppercase !important; background: var(--bg-btn-nav) !important;
-    border: none !important; border-radius: 8px !important;
-    padding: 6px 8px !important; width: 100% !important;
-    min-height: var(--touch-min) !important;
-    transition: all 0.2s !important; margin-top: 8px !important;
-    cursor: pointer !important; display: flex !important;
-    align-items: center !important; justify-content: center !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: rgba(198,40,40,0.15) !important;
-}
-
-/* Sidebar toggle (light/dark) */
-[data-testid="stSidebar"] .stToggle {
-    width: 100%; margin: 4px 0;
-}
-[data-testid="stSidebar"] .stToggle label {
-    color: #ffffff !important;
-    font-size: var(--fs-nav-btn) !important;
-    font-weight: 600 !important;
-    min-height: var(--touch-min) !important;
-    display: flex !important; align-items: center !important;
-}
-[data-testid="stSidebar"] .stToggle [role="switch"] {
-    min-width: 44px !important; min-height: 28px !important;
 }
 
 /* ══════════════════════════════════════════════
@@ -808,7 +712,110 @@ div[data-testid="stMetricValue"] {
 </style>
 """
 
-st.markdown(RESPONSIVE_CSS, unsafe_allow_html=True)
+# ── Sidebar‑specific CSS (only for logged‑in pages) ──────────────────────────
+SIDEBAR_CSS = """
+<style>
+/* Sidebar fixed width and positioning */
+section[data-testid="stSidebar"] {
+    width: var(--sidebar-w) !important;
+    min-width: var(--sidebar-w) !important;
+    max-width: var(--sidebar-w) !important;
+    position: fixed !important; left: 0 !important;
+    background: var(--bg-sidebar) !important;
+    border-right: 1px solid var(--border-sidebar) !important;
+    overflow: hidden !important; height: 100vh !important;
+    padding-top: 0 !important; transition: none !important;
+    animation: none !important; transform: none !important;
+    z-index: 999;
+}
+[data-testid="stAppViewContainer"] {
+    margin-left: var(--sidebar-w) !important;
+}
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+    display: flex !important; flex-direction: column !important;
+    align-items: center !important; padding: 0 4px 4px !important;
+}
+[data-testid="stSidebar"] [data-testid="stElementToolbar"] { display: none !important; }
+[data-testid="stSidebarResizer"],
+section[data-testid="stSidebar"] > div:last-child { display: none !important; }
+section[data-testid="stSidebar"] > div:first-child > div:first-child {
+    display: none !important; height: 0 !important;
+}
+[data-testid="collapsedControl"],
+button[title="Collapse sidebar"],
+button[aria-label="Collapse sidebar"] {
+    display: none !important; opacity: 0 !important;
+    pointer-events: none !important; width: 0 !important; height: 0 !important;
+}
+
+/* Nav radio inside sidebar */
+.stRadio > div {
+    gap: 20px !important; width: 100% !important;
+    flex-direction: column !important; margin-bottom: 8px !important;
+}
+section[data-testid="stSidebar"] .stRadio label {
+    font-size: var(--fs-nav-btn) !important; font-weight: 700 !important;
+    color: #ffffff !important; letter-spacing: 0.8px !important;
+    text-transform: uppercase !important; background: var(--bg-btn-nav) !important;
+    border: none !important; border-radius: 8px !important;
+    padding: 6px 8px !important; width: 100% !important;
+    cursor: pointer !important; transition: all 0.2s !important;
+    min-height: var(--touch-min) !important;
+    display: flex !important; align-items: center !important;
+    margin-top: -15px !important;
+}
+section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] > div:first-child {
+    display: none !important;
+}
+section[data-testid="stSidebar"] .stRadio label:hover {
+    background: var(--bg-btn-hover) !important; color: #ffffff !important;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"]
+label[data-baseweb="radio"]:has(input:checked) {
+    background: rgba(46,125,50,0.22) !important;
+    border-left: 3px solid #4CAF50 !important;
+    color: #ffffff !important; padding-left: 9px !important;
+}
+section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
+    margin: 0 !important; color: #ffffff !important;
+    font-size: var(--fs-nav-btn) !important;
+}
+
+/* Sidebar buttons */
+[data-testid="stSidebar"] .stButton > button {
+    font-size: var(--fs-nav-btn) !important; font-weight: 700 !important;
+    color: #ffffff !important; letter-spacing: 0.8px !important;
+    text-transform: uppercase !important; background: var(--bg-btn-nav) !important;
+    border: none !important; border-radius: 8px !important;
+    padding: 6px 8px !important; width: 100% !important;
+    min-height: var(--touch-min) !important;
+    transition: all 0.2s !important; margin-top: 8px !important;
+    cursor: pointer !important; display: flex !important;
+    align-items: center !important; justify-content: center !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(198,40,40,0.15) !important;
+}
+
+/* Sidebar toggle (light/dark) */
+[data-testid="stSidebar"] .stToggle {
+    width: 100%; margin: 4px 0;
+}
+[data-testid="stSidebar"] .stToggle label {
+    color: #ffffff !important;
+    font-size: var(--fs-nav-btn) !important;
+    font-weight: 600 !important;
+    min-height: var(--touch-min) !important;
+    display: flex !important; align-items: center !important;
+}
+[data-testid="stSidebar"] .stToggle [role="switch"] {
+    min-width: 44px !important; min-height: 28px !important;
+}
+</style>
+"""
+
+# Inject base CSS (always safe)
+st.markdown(BASE_CSS, unsafe_allow_html=True)
 
 # ── Theme injection (runs every render) ────────────────────────────────────────
 _is_light = st.session_state.get("light_mode", False)
@@ -831,14 +838,6 @@ if _is_light:
     .main,.main .block-container{background-color:#f4f7f0!important;color:#0d1f0a!important;}
     .stApp::before{display:none!important;}
     </style>""", unsafe_allow_html=True)
-
-if st.session_state.get("logged_in") and st.session_state.get("page") == "dashboard":
-    st.markdown("""<style>
-    @media screen and (min-width: 801px) {
-        [data-testid="stAppViewContainer"] { margin-left: 230px !important; }
-    }
-    </style>""", unsafe_allow_html=True)
-
 
 # ============================================================
 # HELPERS  (unchanged from original)
@@ -1469,6 +1468,11 @@ if not st.session_state.logged_in and st.session_state.page == "dashboard":
     st.session_state.page = "login"
     st.rerun()
 
+# ============================================================
+# CONDITIONAL SIDEBAR CSS INJECTION (only when logged in)
+# ============================================================
+if st.session_state.logged_in:
+    st.markdown(SIDEBAR_CSS, unsafe_allow_html=True)
 
 # ============================================================
 # DATA FUNCTIONS  (unchanged)
