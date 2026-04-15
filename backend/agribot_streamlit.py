@@ -836,6 +836,9 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
     SENSOR SUMMARY / ALERT LIST / RECOMMENDATIONS / SMS ALERT) produced by the
     "Crop Monitoring Summary with SMS Alert" prompt, AND the old format for
     backward compatibility.
+
+    Additionally, for the old format, it now extracts and displays the
+    "Disease Alert : ..." line if present.
     """
     if df.empty or 'ai_summary' not in df.columns:
         st.markdown(
@@ -974,7 +977,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         return
     # ── END NEW FORMAT RENDER ─────────────────────────────────────────────────
 
-    # ── OLD FORMAT render (unchanged) ────────────────────────────────────────
+    # ── OLD FORMAT render (with Disease Alert line added) ────────────────────
     # Affected plant pills
     crit_pids = parsed.get('critical_plants', '').strip()
     warn_pids = parsed.get('warning_plants',  '').strip()
@@ -985,6 +988,14 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         tally_html += f'<span class="tally-pill tally-warning">⚠️ Warning Lettuce: {warn_pids}</span>'
     if not tally_html and status == "Healthy":
         tally_html = '<span class="tally-pill tally-healthy">✅ All lettuce healthy</span>'
+
+    # ── NEW: Extract Disease Alert line (if present) ─────────────────────────
+    disease_alert_match = re.search(r'Disease Alert\s*:\s*(.+)', raw_summary, re.IGNORECASE)
+    disease_html = ""
+    if disease_alert_match:
+        disease_text = disease_alert_match.group(1).strip()
+        disease_html = f'<div style="margin-top:4px;font-size:10px;color:#ffb74d;">🦠 Disease Alert: {disease_text}</div>'
+    # ── END NEW ──────────────────────────────────────────────────────────────
 
     # Findings rows
     findings = [
@@ -1026,6 +1037,9 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
 
         # ── Affected plant pills ─────────────────────────────
         f'<div style="margin-bottom:8px;">{tally_html}</div>'
+
+        # ── Disease Alert line (NEW) ─────────────────────────
+        f'{disease_html}'
 
         # ── Findings ─────────────────────────────────────────
         f'<div style="margin-bottom:8px;">'
