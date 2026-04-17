@@ -353,7 +353,7 @@ color: #66bb6a !important; margin-bottom: 2px !important; }
 
 /* Sensor Summary block */
 .gh-sensor-summary {
-    font-size: 10px; color: #81c784; line-height: 1.7;
+    font-size: 10px; color: var(--text-color); line-height: 1.7;
     background: rgba(46,125,50,0.08); border-radius: 6px;
     padding: 6px 8px; margin-bottom: 8px;
     border-left: 3px solid rgba(76,175,80,0.4);
@@ -367,17 +367,17 @@ color: #66bb6a !important; margin-bottom: 2px !important; }
     font-size: 10px; color: #ef9a9a; line-height: 1.5;
 }
 .gh-alert-none {
-    font-size: 10px; color: #81c784; font-style: italic; padding: 2px 0;
+    font-size: 10px; color: var(--text-color); font-style: italic; padding: 2px 0;
 }
 
 /* Recommendation bullet items */
 .gh-rec-item {
-    padding: 3px 0; font-size: 10px; color: #e8f5e9;
+    padding: 3px 0; font-size: 10px; color: var(--text-color);
     line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,0.04);
     display: flex; gap: 6px; align-items: flex-start;
 }
 .gh-rec-bullet {
-    color: #4CAF50; font-weight: 900; flex-shrink: 0; margin-top: 1px;
+    color: var(--text-color); font-weight: 900; flex-shrink: 0; margin-top: 1px;
 }
 
 /* Sidebar collapse button — hide entirely */
