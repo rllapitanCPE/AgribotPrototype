@@ -17,7 +17,6 @@ import re
 from streamlit_autorefresh import st_autorefresh
 
 
-
 # ============================================================
 # NOTE: Gemini is NOT called from Streamlit.
 # The Pi runs Gemini 2.5 Flash, writes:
@@ -42,8 +41,6 @@ except ImportError:
     DRIVE_API_OK = False
 
 
-
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH  = os.path.join(SCRIPT_DIR, "agribotailogo.png")
 BG_PATH    = os.path.join(SCRIPT_DIR, "background.jpg")
@@ -52,27 +49,22 @@ PI_BG      = os.path.expanduser("~/env/Thesis code/backend/background.jpg")
 WIN_LOGO   = r"C:\Users\admin\Downloads\AgribotPrototype\backend\agribotailogo.png"
 WIN_BG     = r"C:\Users\admin\Downloads\AgribotPrototype\backend\background.jpg"
 
-
 LANDING_BG_PATH = os.path.join(SCRIPT_DIR, "landpage.png")
 PI_LANDING_BG   = os.path.expanduser("~/env/Thesis code/backend/landpage.png")
 WIN_LANDING_BG  = r"C:\Users\admin\Downloads\AgribotPrototype\backend\landpage.png"
 
-
-ACTUAL_LOGO       = next((p for p in [LOGO_PATH, PI_LOGO, WIN_LOGO]                    if os.path.exists(p)), "")
-ACTUAL_BG         = next((p for p in [BG_PATH,   PI_BG,   WIN_BG]                     if os.path.exists(p)), "")
+ACTUAL_LOGO       = next((p for p in [LOGO_PATH, PI_LOGO, WIN_LOGO]           if os.path.exists(p)), "")
+ACTUAL_BG         = next((p for p in [BG_PATH,   PI_BG,   WIN_BG]             if os.path.exists(p)), "")
 ACTUAL_LANDING_BG = next((p for p in [LANDING_BG_PATH, PI_LANDING_BG, WIN_LANDING_BG] if os.path.exists(p)), "")
-
 
 CREDENTIALS_FILE = os.path.join(SCRIPT_DIR, "..", "credentials.json")
 if not os.path.exists(CREDENTIALS_FILE):
     CREDENTIALS_FILE = os.path.expanduser("~/env/Thesis code/credentials.json")
 
-
 SPREADSHEET_ID   = "1mYScsUkoZn84FIoO_QMaku3gZT3Z9df72kPE3ray9-A"
 DRIVE_FOLDER_ID  = "1g6Tg0UZSuFrJchPyRJLgcJmM_X4Ggatm"
 DRIVE_FOLDER_URL = f"https://drive.google.com/drive/folders/{DRIVE_FOLDER_ID}"
 STREAMLIT_URL    = "https://agribotai.streamlit.app"
-
 
 _page_icon = "🌱"
 if ACTUAL_LOGO:
@@ -81,14 +73,12 @@ if ACTUAL_LOGO:
     except Exception:
         pass
 
-
 st.set_page_config(
     page_title="AgriBot-AI | Dashboard",
     page_icon=_page_icon,
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 
 OPTIMIZED_CSS = """
 <style>
@@ -105,7 +95,8 @@ html, body {
     width: 100% !important; font-size: 14px !important;
 }
 .stApp {
-    margin: 0 !important; padding: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
     overflow: hidden !important; height: 100vh !important;
     width: 100vw !important; max-height: 100vh !important;
 }
@@ -116,7 +107,8 @@ html, body {
 [data-testid="stAppViewBlockContainer"] {
     overflow: hidden !important; padding: 0 !important;
     margin: 0 !important; padding-top: 0 !important;
-    height: 100vh !important; max-height: 100vh !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
 }
 .main {
     margin: 0 !important; padding: 0 !important;
@@ -130,7 +122,8 @@ section.main > div {
              var(--page-margin-bottom) var(--page-margin-left) !important;
     margin: 0 !important; max-width: 100% !important; width: 100% !important;
     overflow: hidden !important; height: 100vh !important; max-height: 100vh !important;
-    display: flex; flex-direction: column; box-sizing: border-box;
+    display: flex;
+    flex-direction: column; box-sizing: border-box;
 }
 .main .block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
 [data-testid="stVerticalBlock"] { gap: 5px !important; }
@@ -142,7 +135,8 @@ button[title="View App"], button[title="Manage app"],
 button[kind="headerNoSpacing"], a[href*="streamlit.io"],
 .viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
 #GithubIcon, .css-1dp5vir {
-    display: none !important; visibility: hidden !important;
+    display: none !important;
+    visibility: hidden !important;
 }
 section[data-testid="stSidebar"] {
     width: 230px !important; min-width: 230px !important;
@@ -160,12 +154,15 @@ section[data-testid="stSidebar"] {
     flex-direction: column !important; margin-bottom: 8px !important;
 }
 section[data-testid="stSidebar"] .stRadio label {
-    font-size: 16px !important; font-weight: 700 !important; color: #ffffff !important;
+    font-size: 16px !important; font-weight: 700 !important;
+    color: #ffffff !important;
     letter-spacing: 0.8px !important; text-transform: uppercase !important;
     background: rgba(46,125,50,0.12) !important; border: none !important;
-    border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
+    border-radius: 8px !important;
+    padding: 6px 8px !important; width: 100% !important;
     cursor: pointer !important; transition: all 0.2s !important; min-height: 44px !important;
-    display: flex !important; align-items: center !important;
+    display: flex !important;
+    align-items: center !important;
     margin-top: -15px !important; padding-top: 0 !important;
 }
 section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] > div:first-child {
@@ -185,12 +182,14 @@ section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p 
 }
 [data-testid="stSidebar"] .stButton > button {
     font-size: 16px !important; font-weight: 700 !important; color: #ffffff !important;
-    letter-spacing: 0.8px !important; text-transform: uppercase !important;
+    letter-spacing: 0.8px !important;
+    text-transform: uppercase !important;
     background: rgba(46,125,50,0.12) !important; border: none !important;
     border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
     min-height: 44px !important; transition: all 0.2s !important; margin-top: 8px !important;
     cursor: pointer !important; display: flex !important;
-    align-items: center !important; justify-content: center !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
     background: rgba(198,40,40,0.15) !important;
@@ -198,16 +197,19 @@ section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p 
 }
 div[data-testid="stMetric"] {
     background: #023f23 !important; border: 1px solid rgba(76,175,80,0.3) !important;
-    border-radius: 10px !important; padding: 8px 6px !important; text-align: center !important;
+    border-radius: 10px !important; padding: 8px 6px !important;
+    text-align: center !important;
 }
 div[data-testid="stMetricLabel"] {
     font-weight: 700 !important; font-size: 11px !important; color: #66bb6a !important;
-    letter-spacing: 1.2px !important; text-transform: uppercase !important;
+    letter-spacing: 1.2px !important;
+    text-transform: uppercase !important;
     justify-content: center !important;
 }
 div[data-testid="stMetricValue"] {
     font-size: 24px !important; font-weight: 900 !important;
-    color: #fff !important; margin-top: 1px !important;
+    color: #fff !important;
+    margin-top: 1px !important;
 }
 .cam-card {
     background: rgba(13,17,23,0.9); border: 1px solid rgba(46,125,50,0.4);
@@ -220,26 +222,31 @@ div[data-testid="stMetricValue"] {
     border-left: 3px solid #4CAF50; padding-left: 7px;
 }
 .alert-item {
-    padding: 6px 10px; background: rgba(183,28,28,0.12);
+    padding: 6px 10px;
+    background: rgba(183,28,28,0.12);
     border: 1px solid rgba(183,28,28,0.3); color: #ef9a9a;
     border-radius: 8px; margin: 10px 0; font-size: 13px !important;
 }
 .sched-badge {
     display: inline-block; background: rgba(21,101,192,0.2);
     border: 1px solid rgba(21,101,192,0.5); border-radius: 5px;
-    padding: 2px 6px; font-size: 10px !important; color: #90CAF9;
+    padding: 2px 6px;
+    font-size: 10px !important; color: #90CAF9;
     font-weight: 700; margin: 0 2px;
 }
 .cam-meta {
-    font-size: 10px !important; color: #66bb6a; margin-top: 15px; line-height: 1.5;
+    font-size: 10px !important; color: #66bb6a;
+    margin-top: 15px; line-height: 1.5;
 }
 .drive-link {
     display: inline-block; margin-top: 5px; background: rgba(46,125,50,0.15);
-    border: 1px solid rgba(76,175,80,0.3); border-radius: 7px; padding: 4px 10px;
+    border: 1px solid rgba(76,175,80,0.3);
+    border-radius: 7px; padding: 4px 10px;
     color: #81c784; font-size: 11px !important; text-decoration: none;
 }
 .cam-placeholder {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
     min-height: 200px; background: rgba(46,125,50,0.04);
     border: 2px dashed rgba(46,125,50,0.3); border-radius: 10px;
     text-align: center; padding: 20px;
@@ -266,24 +273,30 @@ div[data-testid="stMetricValue"] {
 .js-plotly-plot, .plotly, .plot-container { max-height: 210px !important; }
 [data-testid="stPlotlyChart"] { height: 210px !important; overflow: hidden !important; }
 [data-testid="stDataFrame"] {
-    max-height: 300px !important; overflow-y: auto !important; font-size: 13px !important;
+    max-height: 300px !important; overflow-y: auto !important;
+    font-size: 13px !important;
 }
 [data-testid="stAlert"] {
     padding: 8px 12px !important; font-size: 13px !important;
-    border-radius: 8px !important; margin: 4px 0 !important;
+    border-radius: 8px !important;
+    margin: 4px 0 !important;
 }
 [data-testid="stSelectbox"] { margin-bottom: 4px !important; }
 [data-baseweb="select"] { min-height: 42px !important; }
-.stSelectbox label { font-size: 12px !important; color: #66bb6a !important; margin-bottom: 2px !important; }
-.stTextInput label { color: #c8e6c9 !important; font-weight: 600 !important; font-size: 13px !important; }
+.stSelectbox label { font-size: 12px !important;
+color: #66bb6a !important; margin-bottom: 2px !important; }
+.stTextInput label { color: #c8e6c9 !important; font-weight: 600 !important; font-size: 13px !important;
+}
 .landing-btn-wrapper button {
     background: linear-gradient(135deg, #2e7d32, #66bb6a) !important;
     border: 2px solid rgba(255,255,255,0.3) !important; border-radius: 50px !important;
     color: white !important; font-size: 24px !important; font-weight: 700 !important;
     padding: 14px 48px !important; cursor: pointer !important;
-    letter-spacing: 2px !important; text-transform: uppercase !important;
+    letter-spacing: 2px !important;
+    text-transform: uppercase !important;
     min-height: 64px !important; transition: transform 0.2s, box-shadow 0.2s !important;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important; width: auto !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+    width: auto !important;
 }
 .landing-btn-wrapper button:hover {
     transform: scale(1.05) !important;
@@ -322,18 +335,16 @@ div[data-testid="stMetricValue"] {
     object-fit: cover !important; width: 100% !important;
 }
 
-
 /* Greenhouse AI Summary card */
 .gh-summary-card {
     border-radius: 11px; padding: 14px 16px; margin: 4px 0 8px;
     font-size: 11px; line-height: 1.8;
 }
 .gh-summary-healthy  { background: rgba(46,125,50,0.18);  border: 1px solid #81c784; }
-.gh-summary-warning  { background: rgba(230,81,0,0.18);   border: 1px solid #ffb74d; }
+.gh-summary-warning  { background: rgba(230,81,0,0.18); border: 1px solid #ffb74d; }
 .gh-summary-critical { background: rgba(183,28,28,0.18);  border: 1px solid #ef9a9a; }
-.gh-summary-pending  { background: rgba(33,33,33,0.35);   border: 1px solid #555; }
+.gh-summary-pending  { background: rgba(33,33,33,0.35); border: 1px solid #555; }
 .gh-summary-unknown  { background: rgba(21,101,192,0.12); border: 1px solid #90CAF9; }
-
 
 /* Finding rows inside summary card */
 .gh-finding-row {
@@ -350,7 +361,6 @@ div[data-testid="stMetricValue"] {
 .gh-finding-low      { color: #ffb74d !important; }
 .gh-finding-normal   { color: #81c784 !important; }
 
-
 /* Affected plant pills */
 .tally-pill {
     display: inline-block; border-radius: 20px; padding: 2px 10px;
@@ -359,7 +369,6 @@ div[data-testid="stMetricValue"] {
 .tally-healthy  { background: rgba(46,125,50,0.3);  border:1px solid #81c784; color:#81c784; }
 .tally-warning  { background: rgba(230,81,0,0.3);   border:1px solid #ffb74d; color:#ffb74d; }
 .tally-critical { background: rgba(183,28,28,0.3);  border:1px solid #ef9a9a; color:#ef9a9a; }
-
 
 /* SMS sent badge */
 .sms-sent-badge {
@@ -386,8 +395,7 @@ div[data-testid="stMetricValue"] {
 /* Alert list items */
 .gh-alert-item {
     padding: 4px 8px; margin: 3px 0;
-    background: rgba(183,28,28,0.10);
-    border-left: 3px solid #ef9a9a;
+    background: rgba(183,28,28,0.10); border-left: 3px solid #ef9a9a;
     border-radius: 0 6px 6px 0;
     font-size: 10px; color: #ef9a9a; line-height: 1.5;
 }
@@ -407,16 +415,14 @@ div[data-testid="stMetricValue"] {
 
 /* Sidebar collapse button — hide entirely */
 [data-testid="stSidebar"] > div:first-child > div:first-child {
-    display: none !important;
-    visibility: hidden !important;
+    display: none !important; visibility: hidden !important;
     height: 0 !important;
 }
 [data-testid="collapsedControl"],
 button[title="Collapse sidebar"],
 button[aria-label="Collapse sidebar"] {
     display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
+    visibility: hidden !important; opacity: 0 !important;
     pointer-events: none !important;
     width: 0 !important;
     height: 0 !important;
@@ -426,14 +432,12 @@ button[aria-label="Collapse sidebar"] {
 section[data-testid="stSidebar"],
 .stAppViewMain {
     transition: none !important;
-    animation: none !important;
-    transform: none !important;
+    animation: none !important; transform: none !important;
 }
 
 /* Lock sidebar at exactly 230px, fixed to left edge */
 section[data-testid="stSidebar"] {
-    width: 230px !important;
-    min-width: 230px !important;
+    width: 230px !important; min-width: 230px !important;
     max-width: 230px !important;
     position: fixed !important;
     left: 0 !important;
@@ -448,8 +452,9 @@ section[data-testid="stSidebar"] > div:last-child {
 }
 
 /* NOTE: margin-left: 230px on stAppViewContainer is injected
-   dynamically by Python — dashboard page ONLY. Login and landing
-   pages hide the sidebar so they must NOT get this offset. */
+   dynamically by Python — dashboard page ONLY.
+   Login and landing pages hide the sidebar so they must NOT get this offset.
+*/
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
@@ -545,7 +550,7 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
                 headers.append(f"{h}_{seen[h]}")
             else:
                 seen[h] = 0
-                headers.append(h)
+            headers.append(h)
         df = pd.DataFrame(data[1:], columns=headers)
 
         # ai_summary is the new overall greenhouse summary column
@@ -1200,10 +1205,9 @@ st_autorefresh(interval=30000, key="autorefresh")
 # ============================================================
 if page == "DASHBOARD":
     st.markdown(
-        '<div style="padding:6px 12px 2px;">'
-        '<div style="font-size:20px;font-weight:900;color:#fff;line-height:1.2;">'
-        'Real-Time Monitoring</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
+        '<div style="padding:10px; background-color:#f0f2f6; border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:#555;text-transform:uppercase;">Real-Time Monitoring</div>'
+        '<div style="font-size:28px;font-weight:900;color:#31333F;margin-top:-5px;">'
         'Greenhouse Overview — AgriBot-AI</div>'
         '</div>', unsafe_allow_html=True)
 
@@ -1307,11 +1311,11 @@ if page == "DASHBOARD":
 # ============================================================
 elif page == "ANALYSIS":
     st.markdown(
-        '<div style="padding:6px 12px 4px;">'
-        '<div style="font-size:18px;font-weight:900;color:#fff;">Historical Trends</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
-        'Sensor data over time</div></div>',
-        unsafe_allow_html=True)
+        '<div style="padding:10px; background-color:#f0f2f6; border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:#555;text-transform:uppercase;">Historical Trends</div>'
+        '<div style="font-size:28px;font-weight:900;color:#31333F;margin-top:-5px;">'
+        'Sensor data over time</div>'
+        '</div>', unsafe_allow_html=True)
 
     if latest.empty:
         st.warning("No data available yet.")
@@ -1427,11 +1431,11 @@ elif page == "ANALYSIS":
 # ============================================================
 elif page == "LOGS":
     st.markdown(
-        '<div style="padding:6px 12px 4px;">'
-        '<div style="font-size:18px;font-weight:900;color:#fff;">System Logs</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
-        'Last 24 hours</div></div>',
-        unsafe_allow_html=True)
+        '<div style="padding:10px; background-color:#f0f2f6; border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:#555;text-transform:uppercase;">System Logs</div>'
+        '<div style="font-size:28px;font-weight:900;color:#31333F;margin-top:-5px;">'
+        'Last 24 hours</div>'
+        '</div>', unsafe_allow_html=True)
 
     logs = get_historical_data(plant_id=None, hours=24)
     if not logs.empty:
@@ -1489,7 +1493,7 @@ elif page == "LOGS":
         logs['ai_result']  = logs['ai_status'].apply(extract_status_only) \
                              if 'ai_status' in logs.columns else ""
         logs['summary_flag'] = logs['ai_summary'].apply(extract_summary_flag) \
-                               if 'ai_summary' in logs.columns else ""
+                                if 'ai_summary' in logs.columns else ""
 
         display_cols = ['timestamp', 'plant_id', 'temp_c', 'humidity',
                         'soil_moisture', 'ph', 'ai_result', 'summary_flag']
@@ -1524,11 +1528,11 @@ elif page == "LOGS":
 # ============================================================
 elif page == "USERS":
     st.markdown(
-        '<div style="padding:6px 12px 4px;">'
-        '<div style="font-size:18px;font-weight:900;color:#fff;">Admin Panel</div>'
-        '<div style="font-size:20px;color:#66bb6a;letter-spacing:1px;margin-top:-75px;font-weight:bold;">'
-        'Registered accounts</div></div>',
-        unsafe_allow_html=True)
+        '<div style="padding:10px; background-color:#f0f2f6; border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:#555;text-transform:uppercase;">Admin Panel</div>'
+        '<div style="font-size:28px;font-weight:900;color:#31333F;margin-top:-5px;">'
+        'Registered accounts</div>'
+        '</div>', unsafe_allow_html=True)
 
     st.table(pd.DataFrame({
         "Username": ["admin@agribot.ai", "user@agribot.ai"],
