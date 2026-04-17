@@ -718,7 +718,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
     """
     if df.empty or 'ai_summary' not in df.columns:
         st.markdown(
-            '<div class="gh-summary-card gh-summary-pending" style="color:#aaa;">'
+            '<div class="gh-summary-card gh-summary-pending" style="color:var(--text-color);">'
             '🕒 No AI summary yet — add the <b>ai_summary</b> column to your Google Sheet '
             'and run the next camera session.'
             '</div>', unsafe_allow_html=True)
@@ -730,7 +730,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
 
     if summary_df.empty:
         st.markdown(
-            '<div class="gh-summary-card gh-summary-pending" style="color:#aaa;">'
+            '<div class="gh-summary-card gh-summary-pending" style="color:var(--text-color);">'
             '🕒 Greenhouse summary not available yet.<br><br>'
             'The Pi writes a summary after each camera session '
             '(<span class="sched-badge">7:00 AM</span>'
@@ -747,14 +747,14 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
 
     if not parsed:
         st.markdown(
-            '<div class="gh-summary-card gh-summary-pending" style="color:#aaa;">'
+            '<div class="gh-summary-card gh-summary-pending" style="color:var(--text-color);">'
             '🕒 No AI summary yet — waiting for next camera session.'
             '</div>', unsafe_allow_html=True)
         return
 
     if parsed.get("__pending__"):
         st.markdown(
-            '<div class="gh-summary-card gh-summary-pending" style="color:#aaa;">'
+            '<div class="gh-summary-card gh-summary-pending" style="color:var(--text-color);">'
             '🔄 AI analyzing batch... greenhouse summary will appear shortly.'
             '</div>', unsafe_allow_html=True)
         return
@@ -766,7 +766,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         "Critical": ("#ef9a9a", "gh-summary-critical", "🔴"),
         "Unknown":  ("#90CAF9", "gh-summary-unknown",  "ℹ️"),
     }
-    txt_c, css_cls, icon = color_map.get(status, ("#90CAF9", "gh-summary-unknown", "ℹ️"))
+    txt_c, css_cls, icon = color_map.get(status, ("var(--text-color);", "gh-summary-unknown", "ℹ️"))
 
     # ── RENDER NEW FORMAT ──────────────────────────────────────────────
     if parsed.get('__new_format__'):
@@ -799,7 +799,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         sms_html = (
             f'<div style="margin-top:8px;padding:6px 8px;'
             f'background:rgba(21,101,192,0.12);border:1px solid rgba(144,202,249,0.3);'
-            f'border-radius:6px;font-size:9px;color:#90CAF9;">'
+            f'border-radius:6px;font-size:9px;color:var(--text-color);">'
             f'<span style="font-weight:700;letter-spacing:0.5px;">📨 SMS ALERT: </span>'
             f'{sms_line}'
             f'</div>'
@@ -810,16 +810,16 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             f'<div style="font-weight:900;color:{txt_c};font-size:13px;'
             f'margin-bottom:6px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
             f'{icon} Overall Status: <b>{status_label}</b>'
-            f'<span style="font-size:9px;color:#888;font-weight:400;margin-left:6px;">{ts}</span>'
+            f'<span style="font-size:9px;color:var(--text-color);font-weight:400;margin-left:6px;">{ts}</span>'
             f'</div>'
             f'<div style="margin-bottom:6px;">'
-            f'<div style="font-size:9px;font-weight:700;color:#a5d6a7;'
+            f'<div style="font-size:9px;font-weight:700;color:var(--text-color);'
             f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
             f'SENSOR SUMMARY</div>'
             f'{sensor_html}'
             f'</div>'
             f'<div style="margin-bottom:6px;">'
-            f'<div style="font-size:9px;font-weight:700;color:#ef9a9a;'
+            f'<div style="font-size:9px;font-weight:700;color:var(--text-color);'
             f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
             f'DISEASE ALERTS</div>'
             f'{alerts_html}'
