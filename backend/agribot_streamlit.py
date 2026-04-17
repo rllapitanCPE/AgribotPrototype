@@ -517,7 +517,7 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
                 headers.append(f"{h}_{seen[h]}")
             else:
                 seen[h] = 0
-            headers.append(h)
+                headers.append(h)
         df = pd.DataFrame(data[1:], columns=headers)
 
         # ai_summary is the new overall greenhouse summary column
@@ -1306,7 +1306,7 @@ elif page == "ANALYSIS":
 
     if sensor_choice == "Soil Moisture (%)":
         plant_sel = st.selectbox(
-            "Select Plant", list(range(1, 11)),
+            "Select Plant", list(range(1, 9)),  # Shows 1-8
             format_func=lambda x: f"Lettuce {x}")
         hist_df = get_historical_data(plant_id=plant_sel, hours=hours)
         chart_title = f"Soil Moisture — Lettuce {plant_sel}"
