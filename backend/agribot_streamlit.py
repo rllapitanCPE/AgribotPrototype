@@ -353,7 +353,7 @@ color: #66bb6a !important; margin-bottom: 2px !important; }
 
 /* Sensor Summary block */
 .gh-sensor-summary {
-    font-size: 10px; color: #c8e6c9; line-height: 1.7;
+    font-size: 10px; color: #81c784; line-height: 1.7;
     background: rgba(46,125,50,0.08); border-radius: 6px;
     padding: 6px 8px; margin-bottom: 8px;
     border-left: 3px solid rgba(76,175,80,0.4);
@@ -819,13 +819,13 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             f'{sensor_html}'
             f'</div>'
             f'<div style="margin-bottom:6px;">'
-            f'<div style="font-size:9px;font-weight:700;color:#888;'
+            f'<div style="font-size:9px;font-weight:700;color:#ef9a9a;'
             f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
             f'DISEASE ALERTS</div>'
             f'{alerts_html}'
             f'</div>'
             f'<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
-            f'<div style="font-size:9px;font-weight:700;color:#888;'
+            f'<div style="font-size:9px;font-weight:700;color:#66bb6a;'
             f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
             f'RECOMMENDATIONS</div>'
             f'{recs_html}'
