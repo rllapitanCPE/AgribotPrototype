@@ -100,47 +100,26 @@ html, body {
     overflow: hidden !important; height: 100vh !important;
     width: 100vw !important; max-height: 100vh !important;
 }
-[data-testid="stAppViewContainer"] {
-    overflow: hidden !important; padding: 0 !important;
-    margin: 0 !important; height: 100vh !important;
-}
-[data-testid="stAppViewBlockContainer"] {
-    overflow: hidden !important; padding: 0 !important;
-    margin: 0 !important; padding-top: 0 !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-}
-.main {
-    margin: 0 !important; padding: 0 !important;
-    overflow: hidden !important; height: 100vh !important;
-}
-section.main > div {
-    padding-top: 0 !important; padding-bottom: 0 !important; margin-top: 0 !important;
+[data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"], .main {
+    overflow: hidden !important; padding: 0 !important; margin: 0 !important; 
+    height: 100vh !important; max-height: 100vh !important;
 }
 .main .block-container {
     padding: var(--page-margin-top) var(--page-margin-right)
              var(--page-margin-bottom) var(--page-margin-left) !important;
     margin: 0 !important; max-width: 100% !important; width: 100% !important;
     overflow: hidden !important; height: 100vh !important; max-height: 100vh !important;
-    display: flex;
-    flex-direction: column; box-sizing: border-box;
+    display: flex; flex-direction: column; box-sizing: border-box;
 }
 .main .block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
 [data-testid="stVerticalBlock"] { gap: 5px !important; }
-#MainMenu, footer, header,
-[data-testid="stHeader"], [data-testid="stToolbar"],
-[data-testid="stDecoration"], [data-testid="stStatusWidget"],
-[data-testid="collapsedControl"], .stDeployButton,
-button[title="View App"], button[title="Manage app"],
-button[kind="headerNoSpacing"], a[href*="streamlit.io"],
-.viewerBadge_container__1QSob, .styles_viewerBadge__CvC9N,
-#GithubIcon, .css-1dp5vir {
-    display: none !important;
-    visibility: hidden !important;
+#MainMenu, footer, header, [data-testid="stHeader"], [data-testid="stToolbar"], 
+[data-testid="stDecoration"], [data-testid="stStatusWidget"], [data-testid="collapsedControl"] {
+    display: none !important; visibility: hidden !important;
 }
 section[data-testid="stSidebar"] {
     width: 230px !important; min-width: 230px !important;
-    background: #023f23 !important;
+    background: var(--secondary-background-color) !important;
     border-right: 1px solid rgba(46,125,50,0.5) !important;
     overflow: hidden !important; height: 100vh !important; padding-top: 0 !important;
 }
@@ -155,50 +134,39 @@ section[data-testid="stSidebar"] {
 }
 section[data-testid="stSidebar"] .stRadio label {
     font-size: 16px !important; font-weight: 700 !important;
-    color: #ffffff !important;
+    color: var(--text-color) !important;
     letter-spacing: 0.8px !important; text-transform: uppercase !important;
     background: rgba(46,125,50,0.12) !important; border: none !important;
-    border-radius: 8px !important;
-    padding: 6px 8px !important; width: 100% !important;
+    border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
     cursor: pointer !important; transition: all 0.2s !important; min-height: 44px !important;
-    display: flex !important;
-    align-items: center !important;
-    margin-top: -15px !important; padding-top: 0 !important;
+    display: flex !important; align-items: center !important; margin-top: -15px !important;
 }
 section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] > div:first-child {
     display: none !important;
 }
 section[data-testid="stSidebar"] .stRadio label:hover {
-    background: rgba(76,175,80,0.12) !important; color: #ffffff !important;
+    background: rgba(76,175,80,0.12) !important; color: var(--text-color) !important;
 }
-section[data-testid="stSidebar"] div[role="radiogroup"]
-label[data-baseweb="radio"]:has(input:checked) {
-    background: rgba(46,125,50,0.22) !important;
-    border-left: 3px solid #4CAF50 !important;
-    color: #ffffff !important; padding-left: 9px !important;
+section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb="radio"]:has(input:checked) {
+    background: rgba(46,125,50,0.22) !important; border-left: 3px solid #4CAF50 !important;
+    color: var(--text-color) !important; padding-left: 9px !important;
 }
 section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
-    margin: 0 !important; color: #ffffff !important;
+    margin: 0 !important; color: var(--text-color) !important;
 }
 [data-testid="stSidebar"] .stButton > button {
-    font-size: 16px !important; font-weight: 700 !important; color: #ffffff !important;
-    letter-spacing: 0.8px !important;
-    text-transform: uppercase !important;
-    background: rgba(46,125,50,0.12) !important; border: none !important;
-    border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
-    min-height: 44px !important; transition: all 0.2s !important; margin-top: 8px !important;
-    cursor: pointer !important; display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    font-size: 16px !important; font-weight: 700 !important; color: var(--text-color) !important;
+    text-transform: uppercase !important; background: rgba(46,125,50,0.12) !important; 
+    border: none !important; border-radius: 8px !important; padding: 6px 8px !important; 
+    width: 100% !important; cursor: pointer !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
     background: rgba(198,40,40,0.15) !important;
-    border-color: rgba(198,40,40,0.5) !important; color: #ffffff !important;
+    border-color: rgba(198,40,40,0.5) !important; color: var(--text-color) !important;
 }
 div[data-testid="stMetric"] {
-    background: #023f23 !important; border: 1px solid rgba(76,175,80,0.3) !important;
-    border-radius: 10px !important; padding: 8px 6px !important;
-    text-align: center !important;
+    background: var(--secondary-background-color) !important; border: 1px solid rgba(76,175,80,0.3) !important;
+    border-radius: 10px !important; padding: 8px 6px !important; text-align: center !important;
 }
 div[data-testid="stMetricLabel"] {
     font-weight: 700 !important; font-size: 11px !important; color: #66bb6a !important;
@@ -208,11 +176,11 @@ div[data-testid="stMetricLabel"] {
 }
 div[data-testid="stMetricValue"] {
     font-size: 24px !important; font-weight: 900 !important;
-    color: #fff !important;
+    color: var(--text-color) !important;
     margin-top: 1px !important;
 }
 .cam-card {
-    background: rgba(13,17,23,0.9); border: 1px solid rgba(46,125,50,0.4);
+    background: var(--background-color); border: 1px solid rgba(46,125,50,0.4);
     border-radius: 12px; padding: 10px; height: 100%;
 }
 .section-title {
@@ -260,7 +228,7 @@ div[data-testid="stMetricValue"] {
 .ph-neutral  { background: rgba(76,175,80,0.18);  border: 1px solid rgba(76,175,80,0.5);  color: #81c784; }
 .ph-alkaline { background: rgba(66,165,245,0.18); border: 1px solid rgba(66,165,245,0.5); color: #90CAF9; }
 .ph-metric-wrap {
-    background: #023f23; border: 1px solid rgba(76,175,80,0.3);
+    background: var(--secondary-background-color); border: 1px solid rgba(76,175,80,0.3);
     border-radius: 10px; padding: 8px 6px; text-align: center;
 }
 .ph-metric-label {
@@ -268,7 +236,7 @@ div[data-testid="stMetricValue"] {
     letter-spacing: 1.2px; text-transform: uppercase;
 }
 .ph-metric-value {
-    font-size: 24px; font-weight: 900; color: #fff; margin-top: 1px;
+    font-size: 24px; font-weight: 900; color: var(--text-color); margin-top: 1px;
 }
 .js-plotly-plot, .plotly, .plot-container { max-height: 210px !important; }
 [data-testid="stPlotlyChart"] { height: 210px !important; overflow: hidden !important; }
@@ -304,18 +272,17 @@ color: #66bb6a !important; margin-bottom: 2px !important; }
 }
 .landing-page section[data-testid="stSidebar"] { display: none !important; }
 [data-testid="stForm"] {
-    background: linear-gradient(160deg,
-        rgba(27,94,32,0.65) 0%, rgba(46,125,50,0.55) 100%) !important;
+    background: var(--secondary-background-color) !important;
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-radius: 18px; border: 1px solid rgba(165,214,167,0.35);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.35); padding: 26px 36px 34px !important;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15); padding: 26px 36px 34px !important;
 }
 [data-testid="stForm"] input {
-    background: rgba(255,255,255,0.1) !important; color: #fff !important;
+    background: var(--background-color) !important; color: var(--text-color) !important;
     border: 1px solid rgba(165,214,167,0.45) !important; border-radius: 10px !important;
     font-size: 16px !important; min-height: 48px !important;
 }
-[data-testid="stForm"] input::placeholder { color: rgba(200,230,200,0.6) !important; }
+[data-testid="stForm"] input::placeholder { color: var(--text-color) !important; opacity: 0.6 !important; }
 [data-testid="stForm"] button[kind="primaryFormSubmit"] {
     background: linear-gradient(90deg, #2e7d32, #66bb6a) !important;
     border: none !important; color: #fff !important; font-weight: 700 !important;
@@ -1205,9 +1172,9 @@ st_autorefresh(interval=30000, key="autorefresh")
 # ============================================================
 if page == "DASHBOARD":
     st.markdown(
-        '<div style="padding:10px; background-color:#f0f2f6; border-radius:10px; margin-bottom:20px;">'
-        '<div style="font-size:16px;font-weight:700;color:#555;text-transform:uppercase;">Real-Time Monitoring</div>'
-        '<div style="font-size:28px;font-weight:900;color:#31333F;margin-top:-5px;">'
+        '<div style="padding:10px; background-color:var(--secondary-background-color); border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;text-transform:uppercase;">Real-Time Monitoring</div>'
+        '<div style="font-size:28px;font-weight:900;color:var(--text-color);margin-top:-5px;">'
         'Greenhouse Overview — AgriBot-AI</div>'
         '</div>', unsafe_allow_html=True)
 
@@ -1311,9 +1278,9 @@ if page == "DASHBOARD":
 # ============================================================
 elif page == "ANALYSIS":
     st.markdown(
-        '<div style="padding:10px; background-color:#f0f2f6; border-radius:10px; margin-bottom:20px;">'
-        '<div style="font-size:16px;font-weight:700;color:#555;text-transform:uppercase;">Historical Trends</div>'
-        '<div style="font-size:28px;font-weight:900;color:#31333F;margin-top:-5px;">'
+        '<div style="padding:10px; background-color:var(--secondary-background-color); border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;text-transform:uppercase;">Historical Trends</div>'
+        '<div style="font-size:28px;font-weight:900;color:var(--text-color);margin-top:-5px;">'
         'Sensor data over time</div>'
         '</div>', unsafe_allow_html=True)
 
@@ -1431,10 +1398,10 @@ elif page == "ANALYSIS":
 # ============================================================
 elif page == "LOGS":
     st.markdown(
-        '<div style="padding:10px; background-color:#f0f2f6; border-radius:10px; margin-bottom:20px;">'
-        '<div style="font-size:16px;font-weight:700;color:#555;text-transform:uppercase;">System Logs</div>'
-        '<div style="font-size:28px;font-weight:900;color:#31333F;margin-top:-5px;">'
-        'Last 24 hours</div>'
+        '<div style="padding:10px; background-color:var(--secondary-background-color); border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;text-transform:uppercase;">System Logs</div>'
+        '<div style="font-size:28px;font-weight:900;color:var(--text-color);margin-top:-5px;">'
+        'Sensor and AI history</div>'
         '</div>', unsafe_allow_html=True)
 
     logs = get_historical_data(plant_id=None, hours=24)
@@ -1528,9 +1495,9 @@ elif page == "LOGS":
 # ============================================================
 elif page == "USERS":
     st.markdown(
-        '<div style="padding:10px; background-color:#f0f2f6; border-radius:10px; margin-bottom:20px;">'
-        '<div style="font-size:16px;font-weight:700;color:#555;text-transform:uppercase;">Admin Panel</div>'
-        '<div style="font-size:28px;font-weight:900;color:#31333F;margin-top:-5px;">'
+        '<div style="padding:10px; background-color:var(--secondary-background-color); border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;text-transform:uppercase;">Admin Panel</div>'
+        '<div style="font-size:28px;font-weight:900;color:var(--text-color);margin-top:-5px;">'
         'Registered accounts</div>'
         '</div>', unsafe_allow_html=True)
 
