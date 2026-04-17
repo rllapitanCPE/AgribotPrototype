@@ -184,7 +184,7 @@ div[data-testid="stMetricValue"] {
     border-radius: 12px; padding: 10px; height: 100%;
 }
 .section-title {
-    font-size: 12px !important; font-weight: 700 !important; color: #66bb6a !important;
+    font-size: 12px !important; font-weight: 700 !important; color: var(--text-color); !important;
     letter-spacing: 1.2px !important; text-transform: uppercase !important;
     margin-bottom: 15px !important; margin-top: 0 !important;
     border-left: 3px solid #4CAF50; padding-left: 7px;
@@ -192,25 +192,25 @@ div[data-testid="stMetricValue"] {
 .alert-item {
     padding: 6px 10px;
     background: rgba(183,28,28,0.12);
-    border: 1px solid rgba(183,28,28,0.3); color: #ef9a9a;
+    border: 1px solid rgba(183,28,28,0.3); color: var(--text-color);
     border-radius: 8px; margin: 10px 0; font-size: 13px !important;
 }
 .sched-badge {
     display: inline-block; background: rgba(21,101,192,0.2);
     border: 1px solid rgba(21,101,192,0.5); border-radius: 5px;
     padding: 2px 6px;
-    font-size: 10px !important; color: #90CAF9;
+    font-size: 10px !important; color: var(--text-color);
     font-weight: 700; margin: 0 2px;
 }
 .cam-meta {
-    font-size: 10px !important; color: #66bb6a;
+    font-size: 10px !important; color: var(--text-color);
     margin-top: 15px; line-height: 1.5;
 }
 .drive-link {
     display: inline-block; margin-top: 5px; background: rgba(46,125,50,0.15);
     border: 1px solid rgba(76,175,80,0.3);
     border-radius: 7px; padding: 4px 10px;
-    color: #81c784; font-size: 11px !important; text-decoration: none;
+    color: var(--text-color); font-size: 11px !important; text-decoration: none;
 }
 .cam-placeholder {
     display: flex;
@@ -252,8 +252,8 @@ div[data-testid="stMetricValue"] {
 [data-testid="stSelectbox"] { margin-bottom: 4px !important; }
 [data-baseweb="select"] { min-height: 42px !important; }
 .stSelectbox label { font-size: 12px !important;
-color: #66bb6a !important; margin-bottom: 2px !important; }
-.stTextInput label { color: #c8e6c9 !important; font-weight: 600 !important; font-size: 13px !important;
+color: var(--text-color) !important; margin-bottom: 2px !important; }
+.stTextInput label { color: var(--text-color) !important; font-weight: 600 !important; font-size: 13px !important;
 }
 .landing-btn-wrapper button {
     background: linear-gradient(135deg, #2e7d32, #66bb6a) !important;
