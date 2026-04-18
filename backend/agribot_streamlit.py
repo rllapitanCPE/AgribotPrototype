@@ -595,9 +595,8 @@ def fetch_drive_image_private(file_id: str):
 # ============================================================
 def parse_ai_summary(ai_summary_str: str) -> dict:
     """
-    Parses the new Gemini summary format (Greenhouse Status / Affected Plants /
-    Sensor Insights / Recommended Actions) and the legacy format (OVERALL STATUS /
-    SENSOR SUMMARY / DISEASE ALERTS / RECOMMENDATIONS) for backward compatibility.
+    Parses the new Gemini summary format (Greenhouse Status / Findings /
+    Recommendation / Critical Plants) and legacy formats for backward compatibility.
     Returns a dict with keys used by the UI.
     """
     if not ai_summary_str or str(ai_summary_str).strip() in ("", "nan", "N/A"):
@@ -608,67 +607,59 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
     if s == "Wait for Batch...":
         return {"__pending__": True}
 
-    # ── THESIS STUDENT'S FORMAT (Greenhouse Status) ────────────────────────
-    if "Greenhouse Status:" in s:
+    # ── NEW THESIS FORMAT (Greenhouse Status with Findings) ────────────────
+    if "Greenhouse Status:" in s and "Findings:" in s:
         result = {"__new_format__": True}
 
         def _find_new(pattern, default=""):
             m = re.search(pattern, s, re.IGNORECASE | re.DOTALL)
             return m.group(1).strip() if m else default
 
-        # Extract status from "Greenhouse Status: <Healthy / Moderate Risk / High Risk>"
+        # Extract status from "Greenhouse Status: <Healthy / Warning / Critical>"
         status_line = _find_new(r'Greenhouse Status:\s*(.*?)(?=\n\n|\n|$)', "Unknown")
         result['status_label'] = status_line
         sl = status_line.lower()
-        if 'high' in sl:
+        if 'critical' in sl:
             result['status'] = 'Critical'
-        elif 'moderate' in sl:
+        elif 'warning' in sl:
             result['status'] = 'Warning'
         elif 'healthy' in sl:
             result['status'] = 'Healthy'
         else:
             result['status'] = 'Unknown'
 
-        # Sensor summary paragraph (the text between status and Affected Plants)
-        result['sensor_summary'] = _find_new(r'Greenhouse Status:[^\n]*\n\n(.*?)\n\nAffected Plants:', "")
-
-        # Affected Plants section (list)
-        affected_raw = _find_new(r'Affected Plants:\s*(.*?)(?=\n\nSensor Insights:|\Z)', "")
-        if affected_raw:
-            result['alert_list'] = [
-                ln.strip()
-                for ln in affected_raw.splitlines()
-                if ln.strip() and ln.strip().lower() not in ('none', 'no affected plants')
-            ]
-        else:
-            result['alert_list'] = []
-
-        # Sensor Insights - extract temp, humidity, soil, pH findings
-        insights_raw = _find_new(r'Sensor Insights:\s*(.*?)(?=\n\nRecommended Actions:|\Z)', "")
+        # Findings section with 6 subsections
+        findings_raw = _find_new(r'Findings:\s*(.*?)(?=\n\nRecommendation:|\Z)', "")
         
-        # Parse individual sensor readings from insights
-        temp_match = re.search(r'Temperature:\s*(.+?)(?=\n|$)', insights_raw, re.IGNORECASE)
-        humidity_match = re.search(r'Humidity:\s*(.+?)(?=\n|$)', insights_raw, re.IGNORECASE)
-        soil_match = re.search(r'Soil Moisture:\s*(.+?)(?=\n|$)', insights_raw, re.IGNORECASE)
-        ph_match = re.search(r'pH Level:\s*(.+?)(?=\n|$)', insights_raw, re.IGNORECASE)
+        # Parse each Finding subsection
+        img_match = re.search(r'Images:\s*(.+?)(?=\nDisease:|\nSoil|\nTemperature:|\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
+        disease_match = re.search(r'Disease:\s*(.+?)(?=\nSoil|\nTemperature:|\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
+        soil_match = re.search(r'Soil Moisture:\s*(.+?)(?=\nTemperature:|\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
+        temp_match = re.search(r'Temperature:\s*(.+?)(?=\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
+        hum_match = re.search(r'Humidity:\s*(.+?)(?=\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
+        ph_match = re.search(r'pH Level:\s*(.+?)(?=\n\n|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
         
-        result['finding_temp'] = temp_match.group(1).strip() if temp_match else "N/A"
-        result['finding_humidity'] = humidity_match.group(1).strip() if humidity_match else "N/A"
+        result['finding_image'] = img_match.group(1).strip() if img_match else "N/A"
+        result['finding_disease'] = disease_match.group(1).strip() if disease_match else "N/A"
         result['finding_soil'] = soil_match.group(1).strip() if soil_match else "N/A"
+        result['finding_temp'] = temp_match.group(1).strip() if temp_match else "N/A"
+        result['finding_humidity'] = hum_match.group(1).strip() if hum_match else "N/A"
         result['finding_ph'] = ph_match.group(1).strip() if ph_match else "N/A"
-        result['finding_image'] = "N/A"
-        result['finding_disease'] = "N/A"
 
-        # Recommendations (list)
-        recs_raw = _find_new(r'Recommended Actions:\s*(.*?)\Z', "")
-        if recs_raw:
-            result['recommendations'] = [
-                ln.strip()
-                for ln in recs_raw.splitlines()
-                if ln.strip()
-            ]
+        # Recommendation section (single recommendation text)
+        rec_raw = _find_new(r'Recommendation:\s*(.*?)(?=\n\nCritical Plants:|\Z)', "")
+        if rec_raw:
+            # Convert to list for UI compatibility
+            result['recommendations'] = [ln.strip() for ln in rec_raw.splitlines() if ln.strip()]
         else:
             result['recommendations'] = []
+
+        # Critical Plants section
+        critical_raw = _find_new(r'Critical Plants:\s*(.*?)\Z', "")
+        if critical_raw and critical_raw.lower() != 'none':
+            result['alert_list'] = [f"Critical: {p.strip()}" for p in critical_raw.split(',') if p.strip()]
+        else:
+            result['alert_list'] = []
 
         # No SMS in new format
         result['sms_line'] = ""
@@ -836,26 +827,59 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
     }
     txt_c, css_cls, icon = color_map.get(status, ("var(--text-color);", "gh-summary-unknown", "ℹ️"))
 
-    # ── RENDER NEW FORMAT ──────────────────────────────────────────────
+    # ── RENDER NEW FORMAT (with Findings section) ─────────────────────────
     if parsed.get('__new_format__'):
         status_label  = parsed.get('status_label', status)
-        sensor_sum    = parsed.get('sensor_summary', '')
         alert_list    = parsed.get('alert_list', [])
         recs          = parsed.get('recommendations', [])
         sms_line      = parsed.get('sms_line', '')
+        
+        # Findings data
+        finding_img      = parsed.get('finding_image', 'N/A')
+        finding_disease  = parsed.get('finding_disease', 'N/A')
+        finding_soil     = parsed.get('finding_soil', 'N/A')
+        finding_temp     = parsed.get('finding_temp', 'N/A')
+        finding_humidity = parsed.get('finding_humidity', 'N/A')
+        finding_ph       = parsed.get('finding_ph', 'N/A')
 
-        sensor_html = (
-            f'<div class="gh-sensor-summary">{sensor_sum}</div>'
-        ) if sensor_sum else ""
+        # Build Findings HTML
+        findings_html = (
+            f'<div class="gh-finding-row">'
+            f'<span class="gh-finding-label">Images</span>'
+            f'<span class="gh-finding-value">{finding_img}</span>'
+            f'</div>'
+            f'<div class="gh-finding-row">'
+            f'<span class="gh-finding-label">Disease</span>'
+            f'<span class="gh-finding-value">{finding_disease}</span>'
+            f'</div>'
+            f'<div class="gh-finding-row">'
+            f'<span class="gh-finding-label">Soil Moisture</span>'
+            f'<span class="gh-finding-value">{finding_soil}</span>'
+            f'</div>'
+            f'<div class="gh-finding-row">'
+            f'<span class="gh-finding-label">Temperature</span>'
+            f'<span class="gh-finding-value">{finding_temp}</span>'
+            f'</div>'
+            f'<div class="gh-finding-row">'
+            f'<span class="gh-finding-label">Humidity</span>'
+            f'<span class="gh-finding-value">{finding_humidity}</span>'
+            f'</div>'
+            f'<div class="gh-finding-row">'
+            f'<span class="gh-finding-label">pH Level</span>'
+            f'<span class="gh-finding-value">{finding_ph}</span>'
+            f'</div>'
+        )
 
+        # Critical Plants badges
         if alert_list:
-            alerts_html = "".join(
-                f'<div class="gh-alert-item">⚡ {item}</div>'
+            critical_html = "".join(
+                f'<span class="tally-pill tally-critical">{item}</span> '
                 for item in alert_list
             )
         else:
-            alerts_html = '<div class="gh-alert-none">✅ No disease alerts.</div>'
+            critical_html = '<span class="tally-pill tally-healthy">✅ No critical plants</span>'
 
+        # Recommendations
         recs_html = "".join(
             f'<div class="gh-rec-item">'
             f'<span class="gh-rec-bullet">▸</span>'
@@ -880,22 +904,19 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             f'{icon} Overall Status: <b>{status_label}</b>'
             f'<span style="font-size:9px;color:var(--text-color);font-weight:400;margin-left:6px;">{ts}</span>'
             f'</div>'
-            f'<div style="margin-bottom:6px;">'
-            f'<div style="font-size:9px;font-weight:700;color:var(--text-color);'
-            f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
-            f'SENSOR SUMMARY</div>'
-            f'{sensor_html}'
+            f'<div style="margin-bottom:8px;">'
+            f'{critical_html}'
             f'</div>'
             f'<div style="margin-bottom:6px;">'
-            f'<div style="font-size:9px;font-weight:700;color:var(--text-color);'
-            f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
-            f'DISEASE ALERTS</div>'
-            f'{alerts_html}'
+            f'<div style="font-size:9px;font-weight:700;color:#a5d6a7;'
+            f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:4px;">'
+            f'FINDINGS</div>'
+            f'{findings_html}'
             f'</div>'
             f'<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
             f'<div style="font-size:9px;font-weight:700;color:#66bb6a;'
             f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
-            f'RECOMMENDATIONS</div>'
+            f'RECOMMENDATION</div>'
             f'{recs_html}'
             f'</div>'
             f'{sms_html}'
