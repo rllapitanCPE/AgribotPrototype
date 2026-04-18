@@ -19,19 +19,23 @@ from streamlit_autorefresh import st_autorefresh
 
 # ============================================================
 # NOTE: Gemini is NOT called from Streamlit.
-# The Pi runs Gemini 2.5 Flash, writes:
+# The Pi runs Gemini 2.5 Flash and writes:
 #   ai_status  -> full per-plant Gemini block (one row per plant)
 #   ai_summary -> ONE overall greenhouse summary written on the
 #                 last plant row (P8) after every camera session
 # Streamlit reads both columns — zero Gemini quota used here.
 #
-# SUMMARY PANEL (UPDATED):
-#   Now reads the Pi's new structured output:
-#     OVERALL STATUS: <Healthy / Moderate Risk / High Risk>
-#     SENSOR SUMMARY: <text>
-#     DISEASE ALERTS: - P<ID>: <issue> ...
-#     RECOMMENDATIONS: - <step> ...
-#   Backward-compatible with the old format.
+# FIXES IN THIS VERSION:
+#   [FIX 4 - PARSER]
+#   parse_ai_summary() now triggers on "Greenhouse Status:" (the actual
+#   Gemini output) instead of "OVERALL STATUS:" which never appeared.
+#   Correctly extracts: overview paragraph, Affected Plants, Sensor Insights,
+#   Recommended Actions sections.
+#
+#   [FIX 5 - RENDERER]
+#   render_greenhouse_summary_panel() updated to use the new parsed keys:
+#   overview, alert_list, sensor_insights, recommendations.
+#   Sensor Insights section now rendered as formatted finding rows.
 # ============================================================
 try:
     from googleapiclient.discovery import build
@@ -53,9 +57,9 @@ LANDING_BG_PATH = os.path.join(SCRIPT_DIR, "landpage.png")
 PI_LANDING_BG   = os.path.expanduser("~/env/Thesis code/backend/landpage.png")
 WIN_LANDING_BG  = r"C:\Users\admin\Downloads\AgribotPrototype\backend\landpage.png"
 
-ACTUAL_LOGO       = next((p for p in [LOGO_PATH, PI_LOGO, WIN_LOGO]           if os.path.exists(p)), "")
-ACTUAL_BG         = next((p for p in [BG_PATH,   PI_BG,   WIN_BG]             if os.path.exists(p)), "")
-ACTUAL_LANDING_BG = next((p for p in [LANDING_BG_PATH, PI_LANDING_BG, WIN_LANDING_BG] if os.path.exists(p)), "")
+ACTUAL_LOGO       = next((p for p in [LOGO_PATH, PI_LOGO, WIN_LOGO]                     if os.path.exists(p)), "")
+ACTUAL_BG         = next((p for p in [BG_PATH,   PI_BG,   WIN_BG]                       if os.path.exists(p)), "")
+ACTUAL_LANDING_BG = next((p for p in [LANDING_BG_PATH, PI_LANDING_BG, WIN_LANDING_BG]   if os.path.exists(p)), "")
 
 CREDENTIALS_FILE = os.path.join(SCRIPT_DIR, "..", "credentials.json")
 if not os.path.exists(CREDENTIALS_FILE):
@@ -101,7 +105,7 @@ html, body {
     width: 100vw !important; max-height: 100vh !important;
 }
 [data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"], .main {
-    overflow: hidden !important; padding: 0 !important; margin: 0 !important; 
+    overflow: hidden !important; padding: 0 !important; margin: 0 !important;
     height: 100vh !important; max-height: 100vh !important;
 }
 .main .block-container {
@@ -113,7 +117,7 @@ html, body {
 }
 .main .block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
 [data-testid="stVerticalBlock"] { gap: 5px !important; }
-#MainMenu, footer, header, [data-testid="stHeader"], [data-testid="stToolbar"], 
+#MainMenu, footer, header, [data-testid="stHeader"], [data-testid="stToolbar"],
 [data-testid="stDecoration"], [data-testid="stStatusWidget"], [data-testid="collapsedControl"] {
     display: none !important; visibility: hidden !important;
 }
@@ -156,8 +160,8 @@ section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p 
 }
 [data-testid="stSidebar"] .stButton > button {
     font-size: 16px !important; font-weight: 700 !important; color: var(--text-color) !important;
-    text-transform: uppercase !important; background: rgba(46,125,50,0.12) !important; 
-    border: none !important; border-radius: 8px !important; padding: 6px 8px !important; 
+    text-transform: uppercase !important; background: rgba(46,125,50,0.12) !important;
+    border: none !important; border-radius: 8px !important; padding: 6px 8px !important;
     width: 100% !important; cursor: pointer !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
@@ -170,21 +174,19 @@ div[data-testid="stMetric"] {
 }
 div[data-testid="stMetricLabel"] {
     font-weight: 700 !important; font-size: 11px !important; color: #66bb6a !important;
-    letter-spacing: 1.2px !important;
-    text-transform: uppercase !important;
+    letter-spacing: 1.2px !important; text-transform: uppercase !important;
     justify-content: center !important;
 }
 div[data-testid="stMetricValue"] {
     font-size: 24px !important; font-weight: 900 !important;
-    color: var(--text-color) !important;
-    margin-top: 1px !important;
+    color: var(--text-color) !important; margin-top: 1px !important;
 }
 .cam-card {
     background: var(--background-color); border: 1px solid rgba(46,125,50,0.4);
     border-radius: 12px; padding: 10px; height: 100%;
 }
 .section-title {
-    font-size: 12px !important; font-weight: 700 !important; color: var(--text-color); !important;
+    font-size: 12px !important; font-weight: 700 !important; color: var(--text-color) !important;
     letter-spacing: 1.2px !important; text-transform: uppercase !important;
     margin-bottom: 15px !important; margin-top: 0 !important;
     border-left: 3px solid #4CAF50; padding-left: 7px;
@@ -246,25 +248,20 @@ div[data-testid="stMetricValue"] {
 }
 [data-testid="stAlert"] {
     padding: 8px 12px !important; font-size: 13px !important;
-    border-radius: 8px !important;
-    margin: 4px 0 !important;
+    border-radius: 8px !important; margin: 4px 0 !important;
 }
 [data-testid="stSelectbox"] { margin-bottom: 4px !important; }
 [data-baseweb="select"] { min-height: 42px !important; }
-.stSelectbox label { font-size: 12px !important;
-color: var(--text-color) !important; margin-bottom: 2px !important; }
-.stTextInput label { color: var(--text-color) !important; font-weight: 600 !important; font-size: 13px !important;
-}
+.stSelectbox label { font-size: 12px !important; color: var(--text-color) !important; margin-bottom: 2px !important; }
+.stTextInput label { color: var(--text-color) !important; font-weight: 600 !important; font-size: 13px !important; }
 .landing-btn-wrapper button {
     background: linear-gradient(135deg, #2e7d32, #66bb6a) !important;
     border: 2px solid rgba(255,255,255,0.3) !important; border-radius: 50px !important;
     color: white !important; font-size: 24px !important; font-weight: 700 !important;
     padding: 14px 48px !important; cursor: pointer !important;
-    letter-spacing: 2px !important;
-    text-transform: uppercase !important;
+    letter-spacing: 2px !important; text-transform: uppercase !important;
     min-height: 64px !important; transition: transform 0.2s, box-shadow 0.2s !important;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
-    width: auto !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important; width: auto !important;
 }
 .landing-btn-wrapper button:hover {
     transform: scale(1.05) !important;
@@ -308,9 +305,9 @@ color: var(--text-color) !important; margin-bottom: 2px !important; }
     font-size: 11px; line-height: 1.8;
 }
 .gh-summary-healthy  { background: rgba(46,125,50,0.18);  border: 1px solid #81c784; }
-.gh-summary-warning  { background: rgba(230,81,0,0.18); border: 1px solid #ffb74d; }
+.gh-summary-warning  { background: rgba(230,81,0,0.18);   border: 1px solid #ffb74d; }
 .gh-summary-critical { background: rgba(183,28,28,0.18);  border: 1px solid #ef9a9a; }
-.gh-summary-pending  { background: rgba(33,33,33,0.35); border: 1px solid #555; }
+.gh-summary-pending  { background: rgba(33,33,33,0.35);   border: 1px solid #555; }
 .gh-summary-unknown  { background: rgba(21,101,192,0.12); border: 1px solid #90CAF9; }
 
 /* Finding rows inside summary card */
@@ -382,56 +379,34 @@ color: var(--text-color) !important; margin-bottom: 2px !important; }
 
 /* Sidebar collapse button — hide entirely */
 [data-testid="stSidebar"] > div:first-child > div:first-child {
-    display: none !important; visibility: hidden !important;
-    height: 0 !important;
+    display: none !important; visibility: hidden !important; height: 0 !important;
 }
 [data-testid="collapsedControl"],
 button[title="Collapse sidebar"],
 button[aria-label="Collapse sidebar"] {
-    display: none !important;
-    visibility: hidden !important; opacity: 0 !important;
-    pointer-events: none !important;
-    width: 0 !important;
-    height: 0 !important;
+    display: none !important; visibility: hidden !important; opacity: 0 !important;
+    pointer-events: none !important; width: 0 !important; height: 0 !important;
 }
-
-/* Stop sidebar from animating / moving */
 section[data-testid="stSidebar"],
 .stAppViewMain {
-    transition: none !important;
-    animation: none !important; transform: none !important;
+    transition: none !important; animation: none !important; transform: none !important;
 }
-
-/* Lock sidebar at exactly 230px, fixed to left edge */
 section[data-testid="stSidebar"] {
     width: 230px !important; min-width: 230px !important;
-    max-width: 230px !important;
-    position: fixed !important;
-    left: 0 !important;
-    margin-left: 0 !important;
+    max-width: 230px !important; position: fixed !important;
+    left: 0 !important; margin-left: 0 !important;
 }
-
-/* Hide the drag-to-resize handle */
 [data-testid="stSidebarResizer"],
 section[data-testid="stSidebar"] > div:last-child {
-    display: none !important;
-    pointer-events: none !important;
+    display: none !important; pointer-events: none !important;
 }
-
-/* NOTE: margin-left: 230px on stAppViewContainer is injected
-   dynamically by Python — dashboard page ONLY.
-   Login and landing pages hide the sidebar so they must NOT get this offset.
-*/
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
 
-# Sidebar margin — dashboard page only
 if st.session_state.get("logged_in") and st.session_state.get("page") == "dashboard":
     st.markdown("""<style>
-    [data-testid="stAppViewContainer"] {
-        margin-left: 230px !important;
-    }
+    [data-testid="stAppViewContainer"] { margin-left: 230px !important; }
     </style>""", unsafe_allow_html=True)
 
 
@@ -520,7 +495,6 @@ def safe_read_sheet(sheet_obj) -> pd.DataFrame:
                 headers.append(h)
         df = pd.DataFrame(data[1:], columns=headers)
 
-        # ai_summary is the new overall greenhouse summary column
         expected = ['timestamp', 'plant_id', 'temp_c', 'humidity',
                     'soil_moisture', 'ph', 'image_url', 'ai_status', 'ai_summary']
         df = df[[c for c in expected if c in df.columns]]
@@ -591,13 +565,29 @@ def fetch_drive_image_private(file_id: str):
 
 
 # ============================================================
-# GREENHOUSE SUMMARY PARSER (UPDATED FOR NEW PI FORMAT)
+# GREENHOUSE SUMMARY PARSER
+# ============================================================
+# FIX 4: Triggers on "Greenhouse Status:" (actual Gemini output),
+# not "OVERALL STATUS:" which never appeared. Extracts all 4 sections.
 # ============================================================
 def parse_ai_summary(ai_summary_str: str) -> dict:
     """
-    Parses both the new Raspberry Pi format (OVERALL STATUS / SENSOR SUMMARY /
-    DISEASE ALERTS / RECOMMENDATIONS) and the old format for backward compatibility.
-    Returns a dict with keys used by the UI.
+    Parses the Pi's structured summary output.
+
+    New format (produced by fixed prompt):
+      Greenhouse Status: <Healthy / Moderate Risk / High Risk>
+      <overview paragraph>
+      Affected Plants:
+      <lines>
+      Sensor Insights:
+      Temperature: <analysis>
+      Humidity: <analysis>
+      Soil Moisture: <analysis>
+      pH Level: <analysis>
+      Recommended Actions:
+      <lines>
+
+    Also backward-compatible with the old format that used "Status: Healthy/Warning/Critical".
     """
     if not ai_summary_str or str(ai_summary_str).strip() in ("", "nan", "N/A"):
         return {}
@@ -607,16 +597,23 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
     if s == "Wait for Batch...":
         return {"__pending__": True}
 
-    # ── NEW FORMAT (Raspberry Pi) ─────────────────────────────────────────
-    if "OVERALL STATUS:" in s:
+    # ── NEW FORMAT: "Greenhouse Status:" as first line ─────────────────────
+    if re.search(r'Greenhouse Status:', s, re.IGNORECASE):
         result = {"__new_format__": True}
 
-        def _find_new(pattern, default=""):
-            m = re.search(pattern, s, re.IGNORECASE | re.DOTALL)
-            return m.group(1).strip() if m else default
+        def _section(start_pat, end_pat=None):
+            """Extract text block between start_pat header and optional end_pat header."""
+            if end_pat:
+                m = re.search(
+                    start_pat + r'[^\n]*\n([\s\S]+?)(?=\n' + end_pat + r'|\Z)',
+                    s, re.IGNORECASE)
+            else:
+                m = re.search(start_pat + r'[^\n]*\n([\s\S]+)', s, re.IGNORECASE)
+            return m.group(1).strip() if m else ""
 
-        # Overall status line
-        result['status_label'] = _find_new(r'OVERALL STATUS:\s*(.*?)(?=\n\nSENSOR SUMMARY:|\Z)', "Unknown")
+        # Status label
+        status_m = re.search(r'Greenhouse Status:\s*(.+)', s, re.IGNORECASE)
+        result['status_label'] = status_m.group(1).strip() if status_m else "Unknown"
         sl = result['status_label'].lower()
         if 'high' in sl:
             result['status'] = 'Critical'
@@ -627,47 +624,41 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
         else:
             result['status'] = 'Unknown'
 
-        # Sensor summary paragraph
-        result['sensor_summary'] = _find_new(r'SENSOR SUMMARY:\s*(.*?)(?=\n\nDISEASE ALERTS:|\Z)', "")
+        # Overview paragraph: text between "Greenhouse Status: ...\n\n" and "Affected Plants:"
+        overview_m = re.search(
+            r'Greenhouse Status:[^\n]*\n\n([\s\S]+?)(?=\nAffected Plants:|\Z)',
+            s, re.IGNORECASE)
+        result['overview'] = overview_m.group(1).strip() if overview_m else ""
 
-        # Disease alerts (list)
-        alerts_raw = _find_new(r'DISEASE ALERTS:\s*(.*?)(?=\n\nRECOMMENDATIONS:|\Z)', "")
-        if alerts_raw and "No disease" not in alerts_raw:
-            result['alert_list'] = [
-                ln.lstrip('- ').strip()
-                for ln in alerts_raw.splitlines()
-                if ln.strip() and ln.strip().lower() != 'none'
-            ]
-        else:
-            result['alert_list'] = []
+        # Affected Plants
+        affected_raw = _section(r'Affected Plants:', r'Sensor Insights:')
+        result['alert_list'] = [
+            ln.lstrip('- •▸').strip()
+            for ln in affected_raw.splitlines()
+            if ln.strip()
+        ]
 
-        # Recommendations (list)
-        recs_raw = _find_new(r'RECOMMENDATIONS:\s*(.*?)\Z', "")
-        if recs_raw:
-            result['recommendations'] = [
-                ln.lstrip('- ').strip()
-                for ln in recs_raw.splitlines()
-                if ln.strip()
-            ]
-        else:
-            result['recommendations'] = []
+        # Sensor Insights (keep as raw string for row-by-row rendering)
+        result['sensor_insights'] = _section(r'Sensor Insights:', r'Recommended Actions:')
 
-        # No SMS in new format
+        # Recommended Actions
+        rec_raw = _section(r'Recommended Actions:')
+        result['recommendations'] = [
+            ln.lstrip('- •▸').strip()
+            for ln in rec_raw.splitlines()
+            if ln.strip()
+        ]
+
         result['sms_line'] = ""
-
         return result
 
-    # ── OLD FORMAT (backward compatible, but updated per-plant parsing) ───
+    # ── OLD FORMAT (backward compatible) ──────────────────────────────────
     def _find(pattern, default="N/A"):
         m = re.search(pattern, s, re.IGNORECASE)
         return m.group(1).strip() if m else default
 
     result = {}
-
-    # Overall status
-    result['status'] = _find(r'Status:\s*(Healthy|Warning|Critical|Unknown)', "Unknown")
-
-    # Findings — updated to match Pi's new per-plant output (no asterisks)
+    result['status']           = _find(r'Status:\s*(Healthy|Warning|Critical|Unknown)', "Unknown")
     result['finding_image']    = _find(r'Image\s*:\s*(.+)')
     result['finding_disease']  = _find(r'Disease\s*:\s*(.+)')
     result['finding_soil']     = _find(r'Soil Moisture\s*:\s*(.+)')
@@ -675,7 +666,6 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
     result['finding_humidity'] = _find(r'Humidity\s*:\s*(.+)')
     result['finding_ph']       = _find(r'pH Level\s*:\s*(.+)')
 
-    # Recommendation (multi-line block after "Recommendation:\n")
     rec_m = re.search(r'Recommendation:\s*\n([\s\S]+)\Z', s)
     if rec_m:
         rec_lines = [ln.lstrip() for ln in rec_m.group(1).splitlines() if ln.strip()]
@@ -683,13 +673,9 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
     else:
         result['recommendation'] = _find(r'Recommendation:\s*(.+)', "N/A")
 
-    # For old format we still support SMS if present, but UI will hide if empty
-    result['sms_line'] = _find(r'SMS:\s*(.+)', "")
-
-    # For compatibility with existing UI (critical/warning plants not in new per-plant)
+    result['sms_line']        = _find(r'SMS:\s*(.+)', "")
     result['critical_plants'] = ""
-    result['warning_plants'] = ""
-
+    result['warning_plants']  = ""
     return result
 
 
@@ -702,19 +688,25 @@ def _finding_class(value_str: str) -> str:
     return ""
 
 
-def _status_label_to_display(status_label: str) -> str:
-    """Maps 'High Risk' → '🔴 High Risk', 'Moderate Risk' → '⚠️ Moderate Risk', etc."""
-    sl = status_label.lower()
-    if 'high' in sl:   return f"🔴 {status_label}"
-    if 'moderate' in sl: return f"⚠️ {status_label}"
-    if 'healthy' in sl:  return f"✅ {status_label}"
-    return f"ℹ️ {status_label}"
+def _section_header_html(label: str) -> str:
+    return (
+        f'<div style="font-size:9px;font-weight:700;color:#a5d6a7;'
+        f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
+        f'{label}</div>'
+    )
 
 
+# ============================================================
+# GREENHOUSE SUMMARY PANEL RENDERER
+# ============================================================
+# FIX 5: Updated to use the new parsed keys: overview, alert_list,
+# sensor_insights, recommendations. Sensor Insights rendered as
+# formatted finding rows with color-coded High/Low/Normal labels.
+# ============================================================
 def render_greenhouse_summary_panel(df: pd.DataFrame):
     """
-    Renders the 🤖 AI Greenhouse Summary panel on the dashboard.
-    Handles both the new Pi format and the old format.
+    Renders the AI Greenhouse Summary panel on the dashboard.
+    Handles both the new Pi format (Greenhouse Status:) and the old format.
     """
     if df.empty or 'ai_summary' not in df.columns:
         st.markdown(
@@ -733,17 +725,16 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             '<div class="gh-summary-card gh-summary-pending" style="color:var(--text-color);">'
             '🕒 Greenhouse summary not available yet.<br><br>'
             'The Pi writes a summary after each camera session '
-            '(<span class="sched-badge">7:00 AM</span>'
+            '(<span class="sched-badge">7:25 AM</span>'
             '<span class="sched-badge">12:00 NN</span>'
-            '<span class="sched-badge">5:00 PM</span>).'
+            '<span class="sched-badge">7:45 PM</span>).'
             '</div>', unsafe_allow_html=True)
         return
 
     latest_row  = summary_df.sort_values('timestamp').iloc[-1]
     raw_summary = str(latest_row['ai_summary']).strip()
     ts          = pd.to_datetime(latest_row['timestamp']).strftime("%b %d, %Y · %I:%M %p")
-
-    parsed = parse_ai_summary(raw_summary)
+    parsed      = parse_ai_summary(raw_summary)
 
     if not parsed:
         st.markdown(
@@ -755,7 +746,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
     if parsed.get("__pending__"):
         st.markdown(
             '<div class="gh-summary-card gh-summary-pending" style="color:var(--text-color);">'
-            '🔄 AI analyzing batch... greenhouse summary will appear shortly.'
+            '🔄 AI analyzing batch... summary will appear shortly.'
             '</div>', unsafe_allow_html=True)
         return
 
@@ -766,28 +757,60 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         "Critical": ("#ef9a9a", "gh-summary-critical", "🔴"),
         "Unknown":  ("#90CAF9", "gh-summary-unknown",  "ℹ️"),
     }
-    txt_c, css_cls, icon = color_map.get(status, ("var(--text-color);", "gh-summary-unknown", "ℹ️"))
+    txt_c, css_cls, icon = color_map.get(status, ("var(--text-color)", "gh-summary-unknown", "ℹ️"))
 
-    # ── RENDER NEW FORMAT ──────────────────────────────────────────────
+    # ── NEW FORMAT RENDER ──────────────────────────────────────────────────
     if parsed.get('__new_format__'):
-        status_label  = parsed.get('status_label', status)
-        sensor_sum    = parsed.get('sensor_summary', '')
-        alert_list    = parsed.get('alert_list', [])
-        recs          = parsed.get('recommendations', [])
-        sms_line      = parsed.get('sms_line', '')
+        status_label    = parsed.get('status_label', status)
+        overview        = parsed.get('overview', '')
+        alert_list      = parsed.get('alert_list', [])
+        sensor_insights = parsed.get('sensor_insights', '')
+        recs            = parsed.get('recommendations', [])
 
-        sensor_html = (
-            f'<div class="gh-sensor-summary">{sensor_sum}</div>'
-        ) if sensor_sum else ""
+        # Overview paragraph
+        overview_html = (
+            f'<div style="font-size:10px;color:#e8f5e9;line-height:1.7;'
+            f'margin-bottom:10px;padding:7px 10px;'
+            f'background:rgba(46,125,50,0.08);border-radius:6px;'
+            f'border-left:3px solid rgba(76,175,80,0.35);">'
+            f'{overview}'
+            f'</div>'
+        ) if overview else ""
 
+        # Affected Plants section
         if alert_list:
             alerts_html = "".join(
-                f'<div class="gh-alert-item">⚡ {item}</div>'
+                f'<div class="gh-alert-item">▸ {item}</div>'
                 for item in alert_list
             )
         else:
-            alerts_html = '<div class="gh-alert-none">✅ No disease alerts.</div>'
+            alerts_html = '<div class="gh-alert-none">✅ No affected plants detected.</div>'
 
+        # Sensor Insights — render each "Label: value" line as a color-coded row
+        sensor_html = ""
+        if sensor_insights:
+            for line in sensor_insights.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                if ':' in line:
+                    label, _, value = line.partition(':')
+                    val_cls = _finding_class(value.strip())
+                    sensor_html += (
+                        f'<div class="gh-finding-row">'
+                        f'<span class="gh-finding-label">{label.strip()}</span>'
+                        f'<span class="gh-finding-value {val_cls}">{value.strip()}</span>'
+                        f'</div>'
+                    )
+                else:
+                    sensor_html += (
+                        f'<div style="font-size:10px;color:#e8f5e9;padding:2px 0;">'
+                        f'{line}</div>'
+                    )
+        if not sensor_html:
+            sensor_html = '<div style="font-size:10px;color:#888;">No sensor data.</div>'
+
+        # Recommended Actions
         recs_html = "".join(
             f'<div class="gh-rec-item">'
             f'<span class="gh-rec-bullet">▸</span>'
@@ -796,47 +819,36 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             for rec in recs
         ) if recs else '<div style="font-size:10px;color:#888;">No recommendations.</div>'
 
-        sms_html = (
-            f'<div style="margin-top:8px;padding:6px 8px;'
-            f'background:rgba(21,101,192,0.12);border:1px solid rgba(144,202,249,0.3);'
-            f'border-radius:6px;font-size:9px;color:var(--text-color);">'
-            f'<span style="font-weight:700;letter-spacing:0.5px;">📨 SMS ALERT: </span>'
-            f'{sms_line}'
-            f'</div>'
-        ) if sms_line else ""
-
         st.markdown(
             f'<div class="gh-summary-card {css_cls}">'
+            # ── Title row
             f'<div style="font-weight:900;color:{txt_c};font-size:13px;'
-            f'margin-bottom:6px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
-            f'{icon} Overall Status: <b>{status_label}</b>'
-            f'<span style="font-size:9px;color:var(--text-color);font-weight:400;margin-left:6px;">{ts}</span>'
+            f'margin-bottom:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
+            f'{icon} Greenhouse Status: <b>{status_label}</b>'
+            f'<span style="font-size:9px;color:#888;font-weight:400;margin-left:8px;">{ts}</span>'
             f'</div>'
-            f'<div style="margin-bottom:6px;">'
-            f'<div style="font-size:9px;font-weight:700;color:var(--text-color);'
-            f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
-            f'SENSOR SUMMARY</div>'
-            f'{sensor_html}'
-            f'</div>'
-            f'<div style="margin-bottom:6px;">'
-            f'<div style="font-size:9px;font-weight:700;color:var(--text-color);'
-            f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
-            f'DISEASE ALERTS</div>'
+            # ── Overview
+            f'{overview_html}'
+            # ── Affected Plants
+            f'<div style="margin-bottom:8px;">'
+            f'{_section_header_html("Affected Plants")}'
             f'{alerts_html}'
             f'</div>'
+            # ── Sensor Insights
+            f'<div style="margin-bottom:8px;">'
+            f'{_section_header_html("Sensor Insights")}'
+            f'{sensor_html}'
+            f'</div>'
+            # ── Recommended Actions
             f'<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
-            f'<div style="font-size:9px;font-weight:700;color:#66bb6a;'
-            f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
-            f'RECOMMENDATIONS</div>'
+            f'{_section_header_html("Recommended Actions")}'
             f'{recs_html}'
             f'</div>'
-            f'{sms_html}'
             f'</div>',
             unsafe_allow_html=True)
         return
 
-    # ── OLD FORMAT RENDER (unchanged, works with updated parsed fields) ───
-    # Affected plant pills (from old format, may be empty)
+    # ── OLD FORMAT RENDER (unchanged, backward compatible) ─────────────────
     crit_pids = parsed.get('critical_plants', '').strip()
     warn_pids = parsed.get('warning_plants',  '').strip()
     tally_html = ""
@@ -847,14 +859,12 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
     if not tally_html and status == "Healthy":
         tally_html = '<span class="tally-pill tally-healthy">✅ All lettuce healthy</span>'
 
-    # Disease alert line if present in old format
-    disease_alert_match = re.search(r'Disease Alert\s*:\s*(.+)', raw_summary, re.IGNORECASE)
-    disease_html = ""
-    if disease_alert_match:
-        disease_text = disease_alert_match.group(1).strip()
-        disease_html = f'<div style="margin-top:4px;font-size:10px;color:#ffb74d;">🦠 Disease Alert: {disease_text}</div>'
+    disease_m   = re.search(r'Disease Alert\s*:\s*(.+)', raw_summary, re.IGNORECASE)
+    disease_html = (
+        f'<div style="margin-top:4px;font-size:10px;color:#ffb74d;">'
+        f'🦠 Disease Alert: {disease_m.group(1).strip()}</div>'
+    ) if disease_m else ""
 
-    # Findings rows
     findings = [
         ("Image",         parsed.get('finding_image',    'N/A')),
         ("Soil Moisture", parsed.get('finding_soil',     'N/A')),
@@ -862,15 +872,13 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         ("Humidity",      parsed.get('finding_humidity', 'N/A')),
         ("pH Level",      parsed.get('finding_ph',       'N/A')),
     ]
-    findings_html = ""
-    for label, value in findings:
-        val_cls = _finding_class(value)
-        findings_html += (
-            f'<div class="gh-finding-row">'
-            f'<span class="gh-finding-label">{label}</span>'
-            f'<span class="gh-finding-value {val_cls}">{value}</span>'
-            f'</div>'
-        )
+    findings_html = "".join(
+        f'<div class="gh-finding-row">'
+        f'<span class="gh-finding-label">{label}</span>'
+        f'<span class="gh-finding-value {_finding_class(value)}">{value}</span>'
+        f'</div>'
+        for label, value in findings
+    )
 
     rec      = parsed.get('recommendation', 'N/A')
     sms_line = parsed.get('sms_line', '')
@@ -878,29 +886,23 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         f'<div style="margin-top:8px;padding:6px 8px;'
         f'background:rgba(21,101,192,0.12);border:1px solid rgba(144,202,249,0.3);'
         f'border-radius:6px;font-size:9px;color:#90CAF9;">'
-        f'<span style="font-weight:700;letter-spacing:0.5px;">📨 SMS ALERT: </span>{sms_line}'
-        f'</div>'
+        f'<span style="font-weight:700;">📨 SMS: </span>{sms_line}</div>'
     ) if sms_line else ""
 
     st.markdown(
         f'<div class="gh-summary-card {css_cls}">'
         f'<div style="font-weight:900;color:{txt_c};font-size:13px;'
-        f'margin-bottom:6px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
-        f'{icon} Overall Status: <b>{status}</b>'
+        f'margin-bottom:6px;">{icon} Overall Status: <b>{status}</b>'
         f'<span style="font-size:9px;color:#888;font-weight:400;margin-left:6px;">{ts}</span>'
         f'</div>'
         f'<div style="margin-bottom:8px;">{tally_html}</div>'
         f'{disease_html}'
         f'<div style="margin-bottom:8px;">'
-        f'<div style="font-size:9px;font-weight:700;color:#a5d6a7;'
-        f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:4px;">'
-        f'FINDINGS (Greenhouse Average)</div>'
+        f'{_section_header_html("FINDINGS (Greenhouse Average)")}'
         f'{findings_html}'
         f'</div>'
         f'<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
-        f'<div style="font-size:9px;font-weight:700;color:#66bb6a;'
-        f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;">'
-        f'RECOMMENDATION</div>'
+        f'{_section_header_html("RECOMMENDATION")}'
         f'<div style="font-size:10px;color:#e8f5e9;line-height:1.7;">{rec}</div>'
         f'</div>'
         f'{sms_html}'
@@ -1061,7 +1063,6 @@ def get_latest_readings():
     df = safe_read_sheet(sheet)
     if df.empty:
         return df
-    # Only real plant rows (plant_id 1–8)
     df = df[df['plant_id'] > 0]
     return df.sort_values('timestamp').groupby('plant_id').last().reset_index()
 
@@ -1172,8 +1173,10 @@ st_autorefresh(interval=30000, key="autorefresh")
 # ============================================================
 if page == "DASHBOARD":
     st.markdown(
-        '<div style="padding:10px; background-color:var(--secondary-background-color); border-radius:10px; margin-bottom:20px;">'
-        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;text-transform:uppercase;">Real-Time Monitoring</div>'
+        '<div style="padding:10px; background-color:var(--secondary-background-color); '
+        'border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;'
+        'text-transform:uppercase;">Real-Time Monitoring</div>'
         '<div style="font-size:28px;font-weight:900;color:var(--text-color);margin-top:-5px;">'
         'Greenhouse Overview — AgriBot-AI</div>'
         '</div>', unsafe_allow_html=True)
@@ -1237,9 +1240,9 @@ if page == "DASHBOARD":
             st.markdown(
                 f'<div class="cam-meta">{pid_txt}&nbsp;&nbsp;{ts_txt}<br>'
                 f'Captured at '
-                f'<span class="sched-badge">7:00 AM</span>'
+                f'<span class="sched-badge">7:25 AM</span>'
                 f'<span class="sched-badge">12:00 NN</span>'
-                f'<span class="sched-badge">5:00 PM</span></div>'
+                f'<span class="sched-badge">7:45 PM</span></div>'
                 f'<a href="{DRIVE_FOLDER_URL}" target="_blank" class="drive-link">'
                 f'☁️ View all in Drive ↗</a>',
                 unsafe_allow_html=True)
@@ -1250,9 +1253,9 @@ if page == "DASHBOARD":
                 '<div style="font-size:12px;font-weight:700;color:#4CAF50;">No image yet</div>'
                 '<div style="font-size:10px;color:#2e7d32;margin-top:100px;">'
                 'Captures at '
-                '<span class="sched-badge">7:00 AM</span>'
+                '<span class="sched-badge">7:25 AM</span>'
                 '<span class="sched-badge">12:00 NN</span>'
-                '<span class="sched-badge">5:00 PM</span></div>'
+                '<span class="sched-badge">7:45 PM</span></div>'
                 '</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1268,7 +1271,6 @@ if page == "DASHBOARD":
         st.markdown('<div class="section-title">🤖 AI Lettuce Summary</div>',
                     unsafe_allow_html=True)
 
-        # Pass full dataframe — render function finds latest non-blank ai_summary
         all_df = safe_read_sheet(sheet) if sheet else pd.DataFrame()
         render_greenhouse_summary_panel(all_df)
 
@@ -1278,8 +1280,10 @@ if page == "DASHBOARD":
 # ============================================================
 elif page == "ANALYSIS":
     st.markdown(
-        '<div style="padding:10px; background-color:var(--secondary-background-color); border-radius:10px; margin-bottom:20px;">'
-        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;text-transform:uppercase;">Historical Trends</div>'
+        '<div style="padding:10px; background-color:var(--secondary-background-color); '
+        'border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;'
+        'text-transform:uppercase;">Historical Trends</div>'
         '<div style="font-size:28px;font-weight:900;color:var(--text-color);margin-top:-5px;">'
         'Sensor data over time</div>'
         '</div>', unsafe_allow_html=True)
@@ -1306,7 +1310,7 @@ elif page == "ANALYSIS":
 
     if sensor_choice == "Soil Moisture (%)":
         plant_sel = st.selectbox(
-            "Select Plant", list(range(1, 9)),  # Shows 1-8
+            "Select Plant", list(range(1, 9)),
             format_func=lambda x: f"Lettuce {x}")
         hist_df = get_historical_data(plant_id=plant_sel, hours=hours)
         chart_title = f"Soil Moisture — Lettuce {plant_sel}"
@@ -1398,8 +1402,10 @@ elif page == "ANALYSIS":
 # ============================================================
 elif page == "LOGS":
     st.markdown(
-        '<div style="padding:10px; background-color:var(--secondary-background-color); border-radius:10px; margin-bottom:20px;">'
-        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;text-transform:uppercase;">System Logs</div>'
+        '<div style="padding:10px; background-color:var(--secondary-background-color); '
+        'border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;'
+        'text-transform:uppercase;">System Logs</div>'
         '<div style="font-size:28px;font-weight:900;color:var(--text-color);margin-top:-5px;">'
         'Sensor and AI history</div>'
         '</div>', unsafe_allow_html=True)
@@ -1422,7 +1428,6 @@ elif page == "LOGS":
             status = status_m.group(1).capitalize()
             icons  = {"Healthy": "✅", "Warning": "⚠️", "Critical": "🔴", "Unknown": "ℹ️"}
             label  = f"{icons.get(status, '')} {status}"
-            # Show disease name if one was detected
             disease_m = re.search(r'Disease\s*:\s*(.+)', s, re.IGNORECASE)
             if disease_m:
                 disease_raw  = disease_m.group(1).strip()
@@ -1440,16 +1445,16 @@ elif page == "LOGS":
             s = str(ai_summary_str).strip()
             if not s:
                 return ""
-            # New format
-            new_m = re.search(r'OVERALL STATUS:\s*\n?(.+)', s, re.IGNORECASE)
+            # New format — "Greenhouse Status: ..."
+            new_m = re.search(r'Greenhouse Status:\s*(.+)', s, re.IGNORECASE)
             if new_m:
                 label = new_m.group(1).strip()
                 sl = label.lower()
-                if 'high' in sl:     return "🏡 🔴 High Risk"
-                if 'moderate' in sl: return "🏡 ⚠️ Moderate Risk"
-                if 'healthy' in sl:  return "🏡 ✅ Healthy"
+                if 'high' in sl:      return "🏡 🔴 High Risk"
+                if 'moderate' in sl:  return "🏡 ⚠️ Moderate Risk"
+                if 'healthy' in sl:   return "🏡 ✅ Healthy"
                 return f"🏡 {label}"
-            # Old format
+            # Old format — "Status: ..."
             m = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
             if m:
                 status = m.group(1).capitalize()
@@ -1457,10 +1462,10 @@ elif page == "LOGS":
                 return f"🏡 {icons.get(status,'')} {status}"
             return "🏡 Summary"
 
-        logs['ai_result']  = logs['ai_status'].apply(extract_status_only) \
-                             if 'ai_status' in logs.columns else ""
+        logs['ai_result']    = logs['ai_status'].apply(extract_status_only) \
+                               if 'ai_status' in logs.columns else ""
         logs['summary_flag'] = logs['ai_summary'].apply(extract_summary_flag) \
-                                if 'ai_summary' in logs.columns else ""
+                               if 'ai_summary' in logs.columns else ""
 
         display_cols = ['timestamp', 'plant_id', 'temp_c', 'humidity',
                         'soil_moisture', 'ph', 'ai_result', 'summary_flag']
@@ -1468,15 +1473,15 @@ elif page == "LOGS":
             display_cols.insert(-2, 'image_url')
 
         cfg = {
-            "timestamp":    st.column_config.TextColumn("Time"),
-            "plant_id":     st.column_config.NumberColumn("Plant"),
-            "temp_c":       st.column_config.NumberColumn("Temp (°C)"),
-            "humidity":     st.column_config.NumberColumn("Hum (%)"),
-            "soil_moisture":st.column_config.NumberColumn("Soil %"),
-            "ph":           st.column_config.NumberColumn("pH"),
-            "ai_result":    st.column_config.TextColumn("🤖 AI Status", width="small"),
-            "summary_flag": st.column_config.TextColumn("🏡 Overall", width="small"),
-            "image_url":    st.column_config.LinkColumn("📸 Image"),
+            "timestamp":     st.column_config.TextColumn("Time"),
+            "plant_id":      st.column_config.NumberColumn("Plant"),
+            "temp_c":        st.column_config.NumberColumn("Temp (°C)"),
+            "humidity":      st.column_config.NumberColumn("Hum (%)"),
+            "soil_moisture": st.column_config.NumberColumn("Soil %"),
+            "ph":            st.column_config.NumberColumn("pH"),
+            "ai_result":     st.column_config.TextColumn("🤖 AI Status", width="small"),
+            "summary_flag":  st.column_config.TextColumn("🏡 Overall",   width="small"),
+            "image_url":     st.column_config.LinkColumn("📸 Image"),
         }
 
         display_cols = [c for c in display_cols if c in logs.columns]
@@ -1495,8 +1500,10 @@ elif page == "LOGS":
 # ============================================================
 elif page == "USERS":
     st.markdown(
-        '<div style="padding:10px; background-color:var(--secondary-background-color); border-radius:10px; margin-bottom:20px;">'
-        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;text-transform:uppercase;">Admin Panel</div>'
+        '<div style="padding:10px; background-color:var(--secondary-background-color); '
+        'border-radius:10px; margin-bottom:20px;">'
+        '<div style="font-size:16px;font-weight:700;color:var(--text-color);opacity:0.7;'
+        'text-transform:uppercase;">Admin Panel</div>'
         '<div style="font-size:28px;font-weight:900;color:var(--text-color);margin-top:-5px;">'
         'Registered accounts</div>'
         '</div>', unsafe_allow_html=True)
