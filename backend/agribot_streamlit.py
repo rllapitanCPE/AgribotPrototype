@@ -567,28 +567,32 @@ def fetch_drive_image_private(file_id: str):
 # ============================================================
 # GREENHOUSE SUMMARY PARSER
 # ============================================================
-# FIX 4: Triggers on "Greenhouse Status:" (actual Gemini output),
-# not "OVERALL STATUS:" which never appeared. Extracts all 4 sections.
+# Handles the new Pi format:
+#
+#   AgriBot-AI | Session Label       ← optional header (stripped before save)
+#   Timestamp
+#
+#   Greenhouse Status: Critical / Warning / Healthy
+#
+#   Findings:
+#   Images: ...
+#   Disease: ...
+#   Soil Moisture: ...
+#   Temperature: ...
+#   Humidity: ...
+#   pH Level: ...
+#
+#   Recommendation:
+#   ...
+#
+#   Critical Plants: P1, P3
+#
+#   Visit https://... for more info  ← optional footer (stripped before save)
+#
+# Also backward-compatible with the old "Affected Plants / Sensor Insights"
+# format that was stored in earlier sessions.
 # ============================================================
 def parse_ai_summary(ai_summary_str: str) -> dict:
-    """
-    Parses the Pi's structured summary output.
-
-    New format (produced by fixed prompt):
-      Greenhouse Status: <Healthy / Moderate Risk / High Risk>
-      <overview paragraph>
-      Affected Plants:
-      <lines>
-      Sensor Insights:
-      Temperature: <analysis>
-      Humidity: <analysis>
-      Soil Moisture: <analysis>
-      pH Level: <analysis>
-      Recommended Actions:
-      <lines>
-
-    Also backward-compatible with the old format that used "Status: Healthy/Warning/Critical".
-    """
     if not ai_summary_str or str(ai_summary_str).strip() in ("", "nan", "N/A"):
         return {}
 
@@ -597,58 +601,88 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
     if s == "Wait for Batch...":
         return {"__pending__": True}
 
-    # ── NEW FORMAT: "Greenhouse Status:" as first line ─────────────────────
+    # ── NEW FORMAT: has "Findings:" section with 6 sub-fields ─────────────
+    if re.search(r'Greenhouse Status:', s, re.IGNORECASE) and re.search(r'Findings:', s, re.IGNORECASE):
+        result = {"__new_format__": True}
+
+        # Status (Critical / Warning / Healthy)
+        status_m = re.search(r'Greenhouse Status:\s*(.+)', s, re.IGNORECASE)
+        result['status_label'] = status_m.group(1).strip() if status_m else "Unknown"
+        sl = result['status_label'].lower()
+        if 'critical' in sl:   result['status'] = 'Critical'
+        elif 'warning' in sl:  result['status'] = 'Warning'
+        elif 'healthy' in sl:  result['status'] = 'Healthy'
+        else:                  result['status'] = 'Unknown'
+
+        def _field(label):
+            """Extract a single-line Findings field value."""
+            m = re.search(rf'{re.escape(label)}:\s*(.+)', s, re.IGNORECASE)
+            return m.group(1).strip() if m else "N/A"
+
+        result['finding_images']   = _field('Images')
+        result['finding_disease']  = _field('Disease')
+        result['finding_soil']     = _field('Soil Moisture')
+        result['finding_temp']     = _field('Temperature')
+        result['finding_humidity'] = _field('Humidity')
+        result['finding_ph']       = _field('pH Level')
+
+        # Recommendation (may be multi-line)
+        rec_m = re.search(
+            r'Recommendation:\s*\n([\s\S]+?)(?=\n\nCritical Plants:|\nCritical Plants:|\Z)',
+            s, re.IGNORECASE)
+        result['recommendation'] = rec_m.group(1).strip() if rec_m else _field('Recommendation')
+
+        # Critical Plants
+        cp_m = re.search(r'Critical Plants:\s*(.+)', s, re.IGNORECASE)
+        result['critical_plants'] = cp_m.group(1).strip() if cp_m else "None"
+
+        result['sms_line'] = ""
+        return result
+
+    # ── INTERMEDIATE FORMAT: "Greenhouse Status:" but old body structure ───
     if re.search(r'Greenhouse Status:', s, re.IGNORECASE):
         result = {"__new_format__": True}
 
+        status_m = re.search(r'Greenhouse Status:\s*(.+)', s, re.IGNORECASE)
+        result['status_label'] = status_m.group(1).strip() if status_m else "Unknown"
+        sl = result['status_label'].lower()
+        if 'critical' in sl or 'high' in sl:   result['status'] = 'Critical'
+        elif 'warning' in sl or 'moderate' in sl: result['status'] = 'Warning'
+        elif 'healthy' in sl:                    result['status'] = 'Healthy'
+        else:                                    result['status'] = 'Unknown'
+
         def _section(start_pat, end_pat=None):
-            """Extract text block between start_pat header and optional end_pat header."""
             if end_pat:
-                m = re.search(
-                    start_pat + r'[^\n]*\n([\s\S]+?)(?=\n' + end_pat + r'|\Z)',
-                    s, re.IGNORECASE)
+                m = re.search(start_pat + r'[^\n]*\n([\s\S]+?)(?=\n' + end_pat + r'|\Z)', s, re.IGNORECASE)
             else:
                 m = re.search(start_pat + r'[^\n]*\n([\s\S]+)', s, re.IGNORECASE)
             return m.group(1).strip() if m else ""
 
-        # Status label
-        status_m = re.search(r'Greenhouse Status:\s*(.+)', s, re.IGNORECASE)
-        result['status_label'] = status_m.group(1).strip() if status_m else "Unknown"
-        sl = result['status_label'].lower()
-        if 'high' in sl:
-            result['status'] = 'Critical'
-        elif 'moderate' in sl:
-            result['status'] = 'Warning'
-        elif 'healthy' in sl:
-            result['status'] = 'Healthy'
-        else:
-            result['status'] = 'Unknown'
+        # Map old sections into new field names for unified rendering
+        sensor_raw = _section(r'Sensor Insights:', r'Recommended Actions:')
+        def _si(label):
+            m = re.search(rf'{re.escape(label)}:\s*(.+)', sensor_raw, re.IGNORECASE)
+            return m.group(1).strip() if m else "N/A"
 
-        # Overview paragraph: text between "Greenhouse Status: ...\n\n" and "Affected Plants:"
         overview_m = re.search(
-            r'Greenhouse Status:[^\n]*\n\n([\s\S]+?)(?=\nAffected Plants:|\Z)',
-            s, re.IGNORECASE)
-        result['overview'] = overview_m.group(1).strip() if overview_m else ""
+            r'Greenhouse Status:[^\n]*\n\n([\s\S]+?)(?=\nAffected Plants:|\Z)', s, re.IGNORECASE)
+        overview = overview_m.group(1).strip() if overview_m else ""
 
-        # Affected Plants
-        affected_raw = _section(r'Affected Plants:', r'Sensor Insights:')
-        result['alert_list'] = [
-            ln.lstrip('- •▸').strip()
-            for ln in affected_raw.splitlines()
-            if ln.strip()
-        ]
+        result['finding_images']   = overview[:120] + ("…" if len(overview) > 120 else "") if overview else "N/A"
+        result['finding_disease']  = "See per-plant status"
+        result['finding_soil']     = _si('Soil Moisture')
+        result['finding_temp']     = _si('Temperature')
+        result['finding_humidity'] = _si('Humidity')
+        result['finding_ph']       = _si('pH Level')
 
-        # Sensor Insights (keep as raw string for row-by-row rendering)
-        result['sensor_insights'] = _section(r'Sensor Insights:', r'Recommended Actions:')
-
-        # Recommended Actions
         rec_raw = _section(r'Recommended Actions:')
-        result['recommendations'] = [
-            ln.lstrip('- •▸').strip()
-            for ln in rec_raw.splitlines()
-            if ln.strip()
-        ]
+        rec_lines = [ln.lstrip('- •▸').strip() for ln in rec_raw.splitlines() if ln.strip()]
+        result['recommendation'] = " ".join(rec_lines)
 
+        affected_raw = _section(r'Affected Plants:', r'Sensor Insights:')
+        affected_lines = [ln.lstrip('- •▸').strip() for ln in affected_raw.splitlines() if ln.strip()]
+        critical_list = [ln for ln in affected_lines if 'critical' in ln.lower()]
+        result['critical_plants'] = "; ".join(critical_list) if critical_list else "None"
         result['sms_line'] = ""
         return result
 
@@ -659,7 +693,7 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
 
     result = {}
     result['status']           = _find(r'Status:\s*(Healthy|Warning|Critical|Unknown)', "Unknown")
-    result['finding_image']    = _find(r'Image\s*:\s*(.+)')
+    result['finding_images']   = _find(r'Image\s*:\s*(.+)')
     result['finding_disease']  = _find(r'Disease\s*:\s*(.+)')
     result['finding_soil']     = _find(r'Soil Moisture\s*:\s*(.+)')
     result['finding_temp']     = _find(r'Temperature\s*:\s*(.+)')
@@ -668,14 +702,14 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
 
     rec_m = re.search(r'Recommendation:\s*\n([\s\S]+)\Z', s)
     if rec_m:
-        rec_lines = [ln.lstrip() for ln in rec_m.group(1).splitlines() if ln.strip()]
-        result['recommendation'] = " ".join(rec_lines)
+        result['recommendation'] = " ".join(
+            ln.lstrip() for ln in rec_m.group(1).splitlines() if ln.strip())
     else:
         result['recommendation'] = _find(r'Recommendation:\s*(.+)', "N/A")
 
-    result['sms_line']        = _find(r'SMS:\s*(.+)', "")
-    result['critical_plants'] = ""
-    result['warning_plants']  = ""
+    result['critical_plants'] = _find(r'Critical Plants:\s*(.+)', "None")
+    result['sms_line']        = ""
+    result['status_label']    = result['status']
     return result
 
 
@@ -699,15 +733,15 @@ def _section_header_html(label: str) -> str:
 # ============================================================
 # GREENHOUSE SUMMARY PANEL RENDERER
 # ============================================================
-# FIX 5: Updated to use the new parsed keys: overview, alert_list,
-# sensor_insights, recommendations. Sensor Insights rendered as
-# formatted finding rows with color-coded High/Low/Normal labels.
+# Unified renderer for the new format:
+#   Greenhouse Status: Critical / Warning / Healthy
+#   Findings: Images / Disease / Soil Moisture / Temp / Humidity / pH
+#   Recommendation
+#   Critical Plants
+# Also renders the old "Affected Plants / Sensor Insights" format
+# for backward compatibility with previously stored Sheets data.
 # ============================================================
 def render_greenhouse_summary_panel(df: pd.DataFrame):
-    """
-    Renders the AI Greenhouse Summary panel on the dashboard.
-    Handles both the new Pi format (Greenhouse Status:) and the old format.
-    """
     if df.empty or 'ai_summary' not in df.columns:
         st.markdown(
             '<div class="gh-summary-card gh-summary-pending" style="color:var(--text-color);">'
@@ -758,115 +792,73 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         "Unknown":  ("#90CAF9", "gh-summary-unknown",  "ℹ️"),
     }
     txt_c, css_cls, icon = color_map.get(status, ("var(--text-color)", "gh-summary-unknown", "ℹ️"))
+    status_label = parsed.get('status_label', status)
 
-    # ── NEW FORMAT RENDER ──────────────────────────────────────────────────
+    # ── NEW FORMAT RENDER (Findings: Images/Disease/Soil/Temp/Hum/pH) ─────
     if parsed.get('__new_format__'):
-        status_label    = parsed.get('status_label', status)
-        overview        = parsed.get('overview', '')
-        alert_list      = parsed.get('alert_list', [])
-        sensor_insights = parsed.get('sensor_insights', '')
-        recs            = parsed.get('recommendations', [])
+        findings = [
+            ("Images",        parsed.get('finding_images',   'N/A')),
+            ("Disease",       parsed.get('finding_disease',  'N/A')),
+            ("Soil Moisture", parsed.get('finding_soil',     'N/A')),
+            ("Temperature",   parsed.get('finding_temp',     'N/A')),
+            ("Humidity",      parsed.get('finding_humidity', 'N/A')),
+            ("pH Level",      parsed.get('finding_ph',       'N/A')),
+        ]
 
-        # Overview paragraph
-        overview_html = (
-            f'<div style="font-size:10px;color:#e8f5e9;line-height:1.7;'
-            f'margin-bottom:10px;padding:7px 10px;'
-            f'background:rgba(46,125,50,0.08);border-radius:6px;'
-            f'border-left:3px solid rgba(76,175,80,0.35);">'
-            f'{overview}'
-            f'</div>'
-        ) if overview else ""
-
-        # Affected Plants section
-        if alert_list:
-            alerts_html = "".join(
-                f'<div class="gh-alert-item">▸ {item}</div>'
-                for item in alert_list
+        findings_html = ""
+        for label, value in findings:
+            val_cls = _finding_class(value)
+            findings_html += (
+                f'<div class="gh-finding-row">'
+                f'<span class="gh-finding-label">{label}</span>'
+                f'<span class="gh-finding-value {val_cls}">{value}</span>'
+                f'</div>'
             )
+
+        rec  = parsed.get('recommendation', 'N/A')
+        cp   = parsed.get('critical_plants', 'None')
+
+        # Critical Plants pill row
+        if cp and cp.lower() not in ('none', 'n/a', ''):
+            plant_pills = "".join(
+                f'<span class="tally-pill tally-critical">🔴 {p.strip()}</span> '
+                for p in cp.split(',') if p.strip()
+            )
+            cp_html = f'<div style="margin:6px 0;">{plant_pills}</div>'
         else:
-            alerts_html = '<div class="gh-alert-none">✅ No affected plants detected.</div>'
-
-        # Sensor Insights — render each "Label: value" line as a color-coded row
-        sensor_html = ""
-        if sensor_insights:
-            for line in sensor_insights.splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                if ':' in line:
-                    label, _, value = line.partition(':')
-                    val_cls = _finding_class(value.strip())
-                    sensor_html += (
-                        f'<div class="gh-finding-row">'
-                        f'<span class="gh-finding-label">{label.strip()}</span>'
-                        f'<span class="gh-finding-value {val_cls}">{value.strip()}</span>'
-                        f'</div>'
-                    )
-                else:
-                    sensor_html += (
-                        f'<div style="font-size:10px;color:#e8f5e9;padding:2px 0;">'
-                        f'{line}</div>'
-                    )
-        if not sensor_html:
-            sensor_html = '<div style="font-size:10px;color:#888;">No sensor data.</div>'
-
-        # Recommended Actions
-        recs_html = "".join(
-            f'<div class="gh-rec-item">'
-            f'<span class="gh-rec-bullet">▸</span>'
-            f'<span>{rec}</span>'
-            f'</div>'
-            for rec in recs
-        ) if recs else '<div style="font-size:10px;color:#888;">No recommendations.</div>'
+            cp_html = '<div style="font-size:10px;color:#81c784;padding:3px 0;">✅ No critical plants</div>'
 
         st.markdown(
             f'<div class="gh-summary-card {css_cls}">'
-            # ── Title row
+            # Title row
             f'<div style="font-weight:900;color:{txt_c};font-size:13px;'
-            f'margin-bottom:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
+            f'margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
             f'{icon} Greenhouse Status: <b>{status_label}</b>'
             f'<span style="font-size:9px;color:#888;font-weight:400;margin-left:8px;">{ts}</span>'
             f'</div>'
-            # ── Overview
-            f'{overview_html}'
-            # ── Affected Plants
-            f'<div style="margin-bottom:8px;">'
-            f'{_section_header_html("Affected Plants")}'
-            f'{alerts_html}'
+            # Findings section
+            f'<div style="margin-bottom:10px;">'
+            f'{_section_header_html("Findings")}'
+            f'{findings_html}'
             f'</div>'
-            # ── Sensor Insights
-            f'<div style="margin-bottom:8px;">'
-            f'{_section_header_html("Sensor Insights")}'
-            f'{sensor_html}'
+            # Recommendation
+            f'<div style="margin-bottom:10px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
+            f'{_section_header_html("Recommendation")}'
+            f'<div style="font-size:10px;color:#e8f5e9;line-height:1.7;">{rec}</div>'
             f'</div>'
-            # ── Recommended Actions
+            # Critical Plants
             f'<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
-            f'{_section_header_html("Recommended Actions")}'
-            f'{recs_html}'
+            f'{_section_header_html("Critical Plants")}'
+            f'{cp_html}'
             f'</div>'
             f'</div>',
             unsafe_allow_html=True)
         return
 
-    # ── OLD FORMAT RENDER (unchanged, backward compatible) ─────────────────
-    crit_pids = parsed.get('critical_plants', '').strip()
-    warn_pids = parsed.get('warning_plants',  '').strip()
-    tally_html = ""
-    if crit_pids:
-        tally_html += f'<span class="tally-pill tally-critical">🔴 Critical Lettuce: {crit_pids}</span> '
-    if warn_pids:
-        tally_html += f'<span class="tally-pill tally-warning">⚠️ Warning Lettuce: {warn_pids}</span>'
-    if not tally_html and status == "Healthy":
-        tally_html = '<span class="tally-pill tally-healthy">✅ All lettuce healthy</span>'
-
-    disease_m   = re.search(r'Disease Alert\s*:\s*(.+)', raw_summary, re.IGNORECASE)
-    disease_html = (
-        f'<div style="margin-top:4px;font-size:10px;color:#ffb74d;">'
-        f'🦠 Disease Alert: {disease_m.group(1).strip()}</div>'
-    ) if disease_m else ""
-
+    # ── OLD FORMAT RENDER (backward compatible) ────────────────────────────
     findings = [
-        ("Image",         parsed.get('finding_image',    'N/A')),
+        ("Images",        parsed.get('finding_images',   parsed.get('finding_image', 'N/A'))),
+        ("Disease",       parsed.get('finding_disease',  'N/A')),
         ("Soil Moisture", parsed.get('finding_soil',     'N/A')),
         ("Temperature",   parsed.get('finding_temp',     'N/A')),
         ("Humidity",      parsed.get('finding_humidity', 'N/A')),
@@ -880,32 +872,33 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         for label, value in findings
     )
 
-    rec      = parsed.get('recommendation', 'N/A')
-    sms_line = parsed.get('sms_line', '')
-    sms_html = (
-        f'<div style="margin-top:8px;padding:6px 8px;'
-        f'background:rgba(21,101,192,0.12);border:1px solid rgba(144,202,249,0.3);'
-        f'border-radius:6px;font-size:9px;color:#90CAF9;">'
-        f'<span style="font-weight:700;">📨 SMS: </span>{sms_line}</div>'
-    ) if sms_line else ""
+    cp      = parsed.get('critical_plants', '').strip()
+    wp      = parsed.get('warning_plants',  '').strip()
+    tally_html = ""
+    if cp:
+        tally_html += f'<span class="tally-pill tally-critical">🔴 Critical: {cp}</span> '
+    if wp:
+        tally_html += f'<span class="tally-pill tally-warning">⚠️ Warning: {wp}</span>'
+    if not tally_html and status == "Healthy":
+        tally_html = '<span class="tally-pill tally-healthy">✅ All plants healthy</span>'
+
+    rec = parsed.get('recommendation', 'N/A')
 
     st.markdown(
         f'<div class="gh-summary-card {css_cls}">'
         f'<div style="font-weight:900;color:{txt_c};font-size:13px;'
-        f'margin-bottom:6px;">{icon} Overall Status: <b>{status}</b>'
+        f'margin-bottom:6px;">{icon} Greenhouse Status: <b>{status_label}</b>'
         f'<span style="font-size:9px;color:#888;font-weight:400;margin-left:6px;">{ts}</span>'
         f'</div>'
         f'<div style="margin-bottom:8px;">{tally_html}</div>'
-        f'{disease_html}'
         f'<div style="margin-bottom:8px;">'
-        f'{_section_header_html("FINDINGS (Greenhouse Average)")}'
+        f'{_section_header_html("Findings")}'
         f'{findings_html}'
         f'</div>'
         f'<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">'
-        f'{_section_header_html("RECOMMENDATION")}'
+        f'{_section_header_html("Recommendation")}'
         f'<div style="font-size:10px;color:#e8f5e9;line-height:1.7;">{rec}</div>'
         f'</div>'
-        f'{sms_html}'
         f'</div>',
         unsafe_allow_html=True)
 
@@ -1445,19 +1438,21 @@ elif page == "LOGS":
             s = str(ai_summary_str).strip()
             if not s:
                 return ""
-            # New format — "Greenhouse Status: ..."
-            new_m = re.search(r'Greenhouse Status:\s*(.+)', s, re.IGNORECASE)
-            if new_m:
-                label = new_m.group(1).strip()
-                sl = label.lower()
-                if 'high' in sl:      return "🏡 🔴 High Risk"
-                if 'moderate' in sl:  return "🏡 ⚠️ Moderate Risk"
-                if 'healthy' in sl:   return "🏡 ✅ Healthy"
-                return f"🏡 {label}"
-            # Old format — "Status: ..."
-            m = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
+            m = re.search(r'Greenhouse Status:\s*(.+)', s, re.IGNORECASE)
             if m:
-                status = m.group(1).capitalize()
+                label = m.group(1).strip()
+                sl = label.lower()
+                if 'critical' in sl:  return "🏡 🔴 Critical"
+                if 'warning'  in sl:  return "🏡 ⚠️ Warning"
+                if 'healthy'  in sl:  return "🏡 ✅ Healthy"
+                # old format labels
+                if 'high'     in sl:  return "🏡 🔴 High Risk"
+                if 'moderate' in sl:  return "🏡 ⚠️ Moderate Risk"
+                return f"🏡 {label}"
+            # Fallback to old Status: field
+            m2 = re.search(r'Status:\s*(Healthy|Warning|Critical|Unknown)', s, re.IGNORECASE)
+            if m2:
+                status = m2.group(1).capitalize()
                 icons  = {"Healthy": "✅", "Warning": "⚠️", "Critical": "🔴", "Unknown": "ℹ️"}
                 return f"🏡 {icons.get(status,'')} {status}"
             return "🏡 Summary"
