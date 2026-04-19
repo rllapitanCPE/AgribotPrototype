@@ -611,61 +611,66 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
     if "Greenhouse Status:" in s and "Findings:" in s:
         result = {"__new_format__": True}
 
-        def _find_new(pattern, default=""):
+        # --- Status ---
+        status_m = re.search(r'Greenhouse Status:\s*(.+?)(?:\n|$)', s, re.IGNORECASE)
+        status_label = status_m.group(1).strip() if status_m else "Unknown"
+        result['status_label'] = status_label
+        sl = status_label.lower()
+        if 'critical' in sl:    result['status'] = 'Critical'
+        elif 'warning' in sl:   result['status'] = 'Warning'
+        elif 'healthy' in sl:   result['status'] = 'Healthy'
+        else:                   result['status'] = 'Unknown'
+
+        # --- Extract each finding field DIRECTLY from full string ---
+        # This avoids the findings_raw sub-block issue where \n\n vs \n
+        # before Recommendation: causes all sub-fields to return N/A.
+        FIELD_ORDER = [
+            ('Images',        'finding_image'),
+            ('Disease',       'finding_disease'),
+            ('Soil Moisture', 'finding_soil'),
+            ('Temperature',   'finding_temp'),
+            ('Humidity',      'finding_humidity'),
+            ('pH Level',      'finding_ph'),
+        ]
+        field_names = [f[0] for f in FIELD_ORDER]
+
+        for i, (field, key) in enumerate(FIELD_ORDER):
+            # Build a stop pattern from the NEXT field names + Recommendation
+            next_fields = field_names[i+1:] + ['Recommendation']
+            stop = '|'.join(rf'\n{re.escape(f)}:' for f in next_fields)
+            pattern = rf'{re.escape(field)}:\s*(.+?)(?={stop}|\Z)'
             m = re.search(pattern, s, re.IGNORECASE | re.DOTALL)
-            return m.group(1).strip() if m else default
+            if m:
+                # Take only up to first newline to avoid spilling into next field
+                val = m.group(1).strip()
+                val = val.split('\n')[0].strip()
+                result[key] = val if val else "N/A"
+            else:
+                result[key] = "N/A"
 
-        # Extract status from "Greenhouse Status: <Healthy / Warning / Critical>"
-        status_line = _find_new(r'Greenhouse Status:\s*(.*?)(?=\n\n|\n|$)', "Unknown")
-        result['status_label'] = status_line
-        sl = status_line.lower()
-        if 'critical' in sl:
-            result['status'] = 'Critical'
-        elif 'warning' in sl:
-            result['status'] = 'Warning'
-        elif 'healthy' in sl:
-            result['status'] = 'Healthy'
-        else:
-            result['status'] = 'Unknown'
-
-        # Findings section with 6 subsections
-        findings_raw = _find_new(r'Findings:\s*(.*?)(?=\n\nRecommendation:|\Z)', "")
-        
-        # Parse each Finding subsection
-        img_match = re.search(r'Images:\s*(.+?)(?=\nDisease:|\nSoil|\nTemperature:|\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
-        disease_match = re.search(r'Disease:\s*(.+?)(?=\nSoil|\nTemperature:|\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
-        soil_match = re.search(r'Soil Moisture:\s*(.+?)(?=\nTemperature:|\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
-        temp_match = re.search(r'Temperature:\s*(.+?)(?=\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
-        hum_match = re.search(r'Humidity:\s*(.+?)(?=\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
-        ph_match = re.search(r'pH Level:\s*(.+?)(?=\n\n|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
-        
-        result['finding_image'] = img_match.group(1).strip() if img_match else "N/A"
-        result['finding_disease'] = disease_match.group(1).strip() if disease_match else "N/A"
-        result['finding_soil'] = soil_match.group(1).strip() if soil_match else "N/A"
-        result['finding_temp'] = temp_match.group(1).strip() if temp_match else "N/A"
-        result['finding_humidity'] = hum_match.group(1).strip() if hum_match else "N/A"
-        result['finding_ph'] = ph_match.group(1).strip() if ph_match else "N/A"
-
-        # Recommendation section (single recommendation text)
-        rec_raw = _find_new(r'Recommendation:\s*(.*?)(?=\n\nCritical Plants:|\Z)', "")
-        if rec_raw:
-            # Convert to list for UI compatibility
-            result['recommendations'] = [ln.strip() for ln in rec_raw.splitlines() if ln.strip()]
+        # --- Recommendation ---
+        rec_m = re.search(
+            r'Recommendation:\s*(.*?)(?=\n\s*Critical Plants:|\Z)',
+            s, re.IGNORECASE | re.DOTALL
+        )
+        if rec_m:
+            result['recommendations'] = [
+                ln.strip() for ln in rec_m.group(1).splitlines() if ln.strip()
+            ]
         else:
             result['recommendations'] = []
 
-        # Critical Plants section
-        critical_raw = _find_new(r'Critical Plants:\s*(.*?)\Z', "")
-        if critical_raw and critical_raw.lower() != 'none':
-            result['alert_list'] = [f"Critical: {p.strip()}" for p in critical_raw.split(',') if p.strip()]
+        # --- Critical Plants ---
+        crit_m = re.search(r'Critical Plants:\s*(.+?)(?:\n|$)', s, re.IGNORECASE)
+        critical_raw = crit_m.group(1).strip() if crit_m else ""
+        if critical_raw and critical_raw.lower() not in ('none', 'n/a', ''):
+            result['alert_list'] = [p.strip() for p in critical_raw.split(',') if p.strip()]
         else:
             result['alert_list'] = []
 
-        # No SMS in new format
         result['sms_line'] = ""
-
         return result
-
+    
     # ── LEGACY PI FORMAT (OVERALL STATUS - backward compatible) ───────────
     if "OVERALL STATUS:" in s:
         result = {"__new_format__": True}
