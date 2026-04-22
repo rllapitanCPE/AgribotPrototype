@@ -80,8 +80,105 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║                  MASTER STYLESHEET — AgriBot-AI                     ║
+# ║                                                                      ║
+# ║  HOW TO EDIT THIS CSS:                                               ║
+# ║  • Fonts / colors / sizes  →  edit SECTION 1 · DESIGN TOKENS only   ║
+# ║  • Sidebar width           →  change --sidebar-w in SECTION 1        ║
+# ║  • Metric card values      →  change --fs-value in SECTION 1         ║
+# ║  • A specific component    →  find its SECTION comment below         ║
+# ║  • Fix mobile layout       →  scroll to SECTION 8 · MOBILE           ║
+# ║  • Fix desktop layout      →  scroll to SECTION 9 · DESKTOP          ║
+# ║                                                                      ║
+# ║  DISPLAY TARGETS:                                                    ║
+# ║  • BASE (sections 1-7)  →  7-inch IPS 1024×600 (Raspberry Pi)       ║
+# ║  • SECTION 8            →  Mobile phones  (< 768 px wide)            ║
+# ║  • SECTION 9            →  Desktop / laptop  (≥ 1025 px wide)        ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 OPTIMIZED_CSS = """
 <style>
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 1 · DESIGN TOKENS
+   ► EDIT THIS BLOCK to restyle the entire app in one place.
+   ► All variables here are referenced by the component styles below.
+   ► CSS var( ) references update everywhere when you change them here.
+══════════════════════════════════════════════════════════════════════ */
+:root {
+
+  /* ── BRAND / ACCENT COLORS ──────────────────────────────────────── */
+  --c-brand:        #4CAF50;              /* main green accent          */
+  --c-brand-dark:   #2e7d32;              /* darker green               */
+  --c-brand-mid:    #388e3c;              /* mid green (logo ring)      */
+  --c-brand-light:  #81c784;              /* light green text           */
+  --c-brand-xlight: #a5d6a7;             /* very light green labels    */
+
+  /* ── STATUS / HEALTH COLORS ─────────────────────────────────────── */
+  /* Chosen for WCAG-AA contrast on both dark and light backgrounds.   */
+  --c-healthy:   #4CAF50;   /* ✅ green  — healthy status              */
+  --c-warning:   #F57C00;   /* ⚠️ amber  — moderate risk  (AA-safe)   */
+  --c-critical:  #D32F2F;   /* 🔴 red    — high risk      (AA-safe)   */
+  --c-info:      #1565C0;   /* ℹ️  blue  — informational  (AA-safe)   */
+
+  /* Lighter variants used for backgrounds / pills on dark screens     */
+  --c-healthy-light:   #81c784;
+  --c-warning-light:   #ffb74d;
+  --c-critical-light:  #ef9a9a;
+  --c-info-light:      #90CAF9;
+
+  /* ── FONT FAMILY ────────────────────────────────────────────────── */
+  --ff: 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* ── FONT SIZES  ◄ CHANGE THESE TO SCALE TEXT ───────────────────── */
+  --fs-xs:     10px;   /* tiny: timestamps, badge text                 */
+  --fs-sm:     11px;   /* small: metadata, cam captions                */
+  --fs-base:   13px;   /* body / default paragraph text                */
+  --fs-md:     14px;   /* slightly larger body (form text, tables)     */
+  --fs-nav:    16px;   /* sidebar navigation labels                    */
+  --fs-label:  11px;   /* metric card LABEL row (TEMP, HUM, etc.)      */
+  --fs-value:  24px;   /* metric card VALUE row (the big number)       */
+  --fs-sub:    16px;   /* page sub-heading (e.g. "Real-Time Monitor")  */
+  --fs-title:  28px;   /* page main title (e.g. "Greenhouse Overview") */
+
+  /* ── FONT WEIGHTS ───────────────────────────────────────────────── */
+  --fw-normal: 400;
+  --fw-semi:   600;
+  --fw-bold:   700;
+  --fw-black:  900;
+
+  /* ── SPACING ────────────────────────────────────────────────────── */
+  --sp-xs:  4px;
+  --sp-sm:  8px;
+  --sp-md: 12px;
+  --sp-lg: 20px;
+
+  /* ── BORDER RADIUS ──────────────────────────────────────────────── */
+  --r-sm:  6px;
+  --r-md: 10px;
+  --r-lg: 18px;
+
+  /* ── SIDEBAR ────────────────────────────────────────────────────── */
+  --sidebar-w: 230px;    /* change this + the margin-left injection below */
+
+  /* ── CHART & IMAGE HEIGHTS ──────────────────────────────────────── */
+  --chart-h:  210px;   /* Plotly chart max-height                      */
+  --img-h:    260px;   /* Health-feed image max-height                 */
+
+  /* ── COMPONENT BACKGROUND ALPHA ─────────────────────────────────── */
+  --alpha-low:  0.08;
+  --alpha-mid:  0.18;
+  --alpha-high: 0.35;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 2 · BASE RESET & LAYOUT
+   ► Removes Streamlit default padding, locks app to viewport.
+   ► Tuned for 7-inch 1024×600 display. Do not touch unless
+     you know what you're doing — responsive overrides are in
+     SECTION 8 (mobile) and SECTION 9 (desktop) at the bottom.
+══════════════════════════════════════════════════════════════════════ */
 :root {
     --page-margin-top: 0px;
     --page-margin-bottom: 0px;
@@ -92,7 +189,8 @@ OPTIMIZED_CSS = """
 html, body {
     margin: 0 !important; padding: 0 !important;
     overflow: hidden !important; height: 100% !important;
-    width: 100% !important; font-size: 14px !important;
+    width: 100% !important; font-size: var(--fs-base) !important;
+    font-family: var(--ff) !important;
 }
 .stApp {
     margin: 0 !important;
@@ -101,7 +199,7 @@ html, body {
     width: 100vw !important; max-height: 100vh !important;
 }
 [data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"], .main {
-    overflow: hidden !important; padding: 0 !important; margin: 0 !important; 
+    overflow: hidden !important; padding: 0 !important; margin: 0 !important;
     height: 100vh !important; max-height: 100vh !important;
 }
 .main .block-container {
@@ -113,32 +211,58 @@ html, body {
 }
 .main .block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
 [data-testid="stVerticalBlock"] { gap: 5px !important; }
-#MainMenu, footer, header, [data-testid="stHeader"], [data-testid="stToolbar"], 
+
+/* Hide Streamlit chrome elements */
+#MainMenu, footer, header, [data-testid="stHeader"], [data-testid="stToolbar"],
 [data-testid="stDecoration"], [data-testid="stStatusWidget"], [data-testid="collapsedControl"] {
     display: none !important; visibility: hidden !important;
 }
+.main .block-container { display: flex; flex-direction: column; overflow: hidden; }
+.main .block-container > [data-testid="stVerticalBlock"] { flex: 1; overflow: hidden; }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 3 · SIDEBAR
+   ► Width: change --sidebar-w in SECTION 1 (keeps margin-left in sync).
+   ► Nav label font: change --fs-nav in SECTION 1.
+   ► Nav label color: they inherit var(--text-color) from Streamlit.
+   ► Active nav highlight uses --c-brand border & background.
+══════════════════════════════════════════════════════════════════════ */
 section[data-testid="stSidebar"] {
-    width: 230px !important; min-width: 230px !important;
+    width: var(--sidebar-w) !important;
+    min-width: var(--sidebar-w) !important;
+    max-width: var(--sidebar-w) !important;
     background: var(--secondary-background-color) !important;
     border-right: 1px solid rgba(46,125,50,0.5) !important;
     overflow: hidden !important; height: 100vh !important; padding-top: 0 !important;
+    /* Fixed to left edge — no animation */
+    position: fixed !important;
+    left: 0 !important;
+    margin-left: 0 !important;
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
 }
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
     display: flex !important; flex-direction: column !important;
     align-items: center !important; padding: 0 4px 4px !important;
 }
 [data-testid="stSidebar"] [data-testid="stElementToolbar"] { display: none !important; }
+
+/* — Nav radio items — */
 .stRadio > div {
     gap: 20px !important; width: 100% !important;
     flex-direction: column !important; margin-bottom: 8px !important;
 }
 section[data-testid="stSidebar"] .stRadio label {
-    font-size: 16px !important; font-weight: 700 !important;
+    font-size: var(--fs-nav) !important;
+    font-weight: var(--fw-bold) !important;
     color: var(--text-color) !important;
     letter-spacing: 0.8px !important; text-transform: uppercase !important;
     background: rgba(46,125,50,0.12) !important; border: none !important;
-    border-radius: 8px !important; padding: 6px 8px !important; width: 100% !important;
-    cursor: pointer !important; transition: all 0.2s !important; min-height: 44px !important;
+    border-radius: var(--r-sm) !important; padding: 6px 8px !important;
+    width: 100% !important; cursor: pointer !important;
+    transition: all 0.2s !important; min-height: 44px !important;
     display: flex !important; align-items: center !important; margin-top: -15px !important;
 }
 section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] > div:first-child {
@@ -148,121 +272,234 @@ section[data-testid="stSidebar"] .stRadio label:hover {
     background: rgba(76,175,80,0.12) !important; color: var(--text-color) !important;
 }
 section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb="radio"]:has(input:checked) {
-    background: rgba(46,125,50,0.22) !important; border-left: 3px solid #4CAF50 !important;
+    background: rgba(46,125,50,0.22) !important;
+    border-left: 3px solid var(--c-brand) !important;
     color: var(--text-color) !important; padding-left: 9px !important;
 }
 section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
     margin: 0 !important; color: var(--text-color) !important;
 }
+
+/* — Logout button — */
 [data-testid="stSidebar"] .stButton > button {
-    font-size: 16px !important; font-weight: 700 !important; color: var(--text-color) !important;
-    text-transform: uppercase !important; background: rgba(46,125,50,0.12) !important; 
-    border: none !important; border-radius: 8px !important; padding: 6px 8px !important; 
-    width: 100% !important; cursor: pointer !important;
+    font-size: var(--fs-nav) !important;
+    font-weight: var(--fw-bold) !important;
+    color: var(--text-color) !important;
+    text-transform: uppercase !important; background: rgba(46,125,50,0.12) !important;
+    border: none !important; border-radius: var(--r-sm) !important;
+    padding: 6px 8px !important; width: 100% !important; cursor: pointer !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
     background: rgba(198,40,40,0.15) !important;
     border-color: rgba(198,40,40,0.5) !important; color: var(--text-color) !important;
 }
+
+/* — Hide sidebar drag handle & collapse button — */
+[data-testid="stSidebar"] > div:first-child > div:first-child {
+    display: none !important; visibility: hidden !important; height: 0 !important;
+}
+[data-testid="collapsedControl"],
+button[title="Collapse sidebar"],
+button[aria-label="Collapse sidebar"] {
+    display: none !important; visibility: hidden !important;
+    opacity: 0 !important; pointer-events: none !important;
+    width: 0 !important; height: 0 !important;
+}
+[data-testid="stSidebarResizer"],
+section[data-testid="stSidebar"] > div:last-child {
+    display: none !important; pointer-events: none !important;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 4 · METRIC CARDS  (TEMP · HUMIDITY · SOIL rows)
+   ► Value font size  →  --fs-value  in SECTION 1
+   ► Label font size  →  --fs-label  in SECTION 1
+   ► Label color      →  color: var(--c-brand-light) below
+   ► Card border      →  border: 1px solid rgba(76,175,80,0.3) below
+══════════════════════════════════════════════════════════════════════ */
 div[data-testid="stMetric"] {
-    background: var(--secondary-background-color) !important; border: 1px solid rgba(76,175,80,0.3) !important;
-    border-radius: 10px !important; padding: 8px 6px !important; text-align: center !important;
+    background: var(--secondary-background-color) !important;
+    border: 1px solid rgba(76,175,80,0.3) !important;
+    border-radius: var(--r-md) !important;
+    padding: 8px 6px !important; text-align: center !important;
 }
 div[data-testid="stMetricLabel"] {
-    font-weight: 700 !important; font-size: 11px !important; color: #66bb6a !important;
+    font-weight: var(--fw-bold) !important;
+    font-size: var(--fs-label) !important;
+    color: var(--c-brand-light) !important;       /* ← change label color here */
     letter-spacing: 1.2px !important;
     text-transform: uppercase !important;
     justify-content: center !important;
 }
 div[data-testid="stMetricValue"] {
-    font-size: 24px !important; font-weight: 900 !important;
-    color: var(--text-color) !important;
+    font-size: var(--fs-value) !important;
+    font-weight: var(--fw-black) !important;
+    color: var(--text-color) !important;          /* auto light/dark */
     margin-top: 1px !important;
 }
-.cam-card {
-    background: var(--background-color); border: 1px solid rgba(46,125,50,0.4);
-    border-radius: 12px; padding: 10px; height: 100%;
+
+/* — pH card (custom metric, same visual weight as stMetric) — */
+.ph-metric-wrap {
+    background: var(--secondary-background-color);
+    border: 1px solid rgba(76,175,80,0.3);
+    border-radius: var(--r-md); padding: 8px 6px; text-align: center;
 }
+.ph-metric-label {
+    font-weight: var(--fw-bold); font-size: var(--fs-label);
+    color: var(--c-brand-light); letter-spacing: 1.2px; text-transform: uppercase;
+}
+.ph-metric-value {
+    font-size: var(--fs-value); font-weight: var(--fw-black);
+    color: var(--text-color); margin-top: 1px;
+}
+
+/* — pH status badges (Acidic / Neutral / Alkaline) — */
+.ph-badge {
+    display: inline-block; border-radius: var(--r-sm); padding: 2px 10px;
+    font-size: var(--fs-xs) !important; font-weight: var(--fw-bold);
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-left: 6px; vertical-align: middle;
+}
+.ph-acidic   { background: rgba(239,83,80,0.18);  border: 1px solid rgba(239,83,80,0.5);  color: var(--c-critical-light); }
+.ph-neutral  { background: rgba(76,175,80,0.18);  border: 1px solid rgba(76,175,80,0.5);  color: var(--c-healthy-light); }
+.ph-alkaline { background: rgba(66,165,245,0.18); border: 1px solid rgba(66,165,245,0.5); color: var(--c-info-light); }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 5 · COMPONENT STYLES
+   ► Camera card, section titles, alert items, badges, image display.
+   ► Font sizes reference SECTION 1 vars; colors listed inline.
+══════════════════════════════════════════════════════════════════════ */
+
+/* — Camera / image card wrapper — */
+.cam-card {
+    background: var(--background-color);
+    border: 1px solid rgba(46,125,50,0.4);
+    border-radius: var(--r-lg); padding: 10px; height: 100%;
+}
+
+/* — Section title bars (e.g. "📷 Lettuce Health Feed") — */
 .section-title {
-    font-size: 12px !important; font-weight: 700 !important; color: var(--text-color); !important;
+    font-size: var(--fs-md) !important;          /* ← title font size */
+    font-weight: var(--fw-bold) !important;
+    color: var(--text-color) !important;          /* auto light/dark   */
     letter-spacing: 1.2px !important; text-transform: uppercase !important;
     margin-bottom: 15px !important; margin-top: 0 !important;
-    border-left: 3px solid #4CAF50; padding-left: 7px;
+    border-left: 3px solid var(--c-brand); padding-left: 7px;
 }
+
+/* — Alert items (red warning boxes) — */
 .alert-item {
     padding: 6px 10px;
     background: rgba(183,28,28,0.12);
-    border: 1px solid rgba(183,28,28,0.3); color: var(--text-color);
-    border-radius: 8px; margin: 10px 0; font-size: 13px !important;
+    border: 1px solid rgba(183,28,28,0.3);
+    color: var(--text-color);
+    border-radius: var(--r-sm); margin: 10px 0;
+    font-size: var(--fs-base) !important;
 }
+
+/* — Schedule badge (7:00 AM · 12:00 NN · 5:00 PM) — */
 .sched-badge {
     display: inline-block; background: rgba(21,101,192,0.2);
     border: 1px solid rgba(21,101,192,0.5); border-radius: 5px;
     padding: 2px 6px;
-    font-size: 10px !important; color: var(--text-color);
-    font-weight: 700; margin: 0 2px;
+    font-size: var(--fs-xs) !important; color: var(--text-color);
+    font-weight: var(--fw-bold); margin: 0 2px;
 }
+
+/* — Camera metadata text below the image — */
 .cam-meta {
-    font-size: 10px !important; color: var(--text-color);
+    font-size: var(--fs-xs) !important;           /* ← caption size    */
+    color: var(--text-color);
     margin-top: 15px; line-height: 1.5;
 }
+
+/* — "View all in Drive ↗" link — */
 .drive-link {
-    display: inline-block; margin-top: 5px; background: rgba(46,125,50,0.15);
+    display: inline-block; margin-top: 5px;
+    background: rgba(46,125,50,0.15);
     border: 1px solid rgba(76,175,80,0.3);
-    border-radius: 7px; padding: 4px 10px;
-    color: var(--text-color); font-size: 11px !important; text-decoration: none;
+    border-radius: var(--r-sm); padding: 4px 10px;
+    color: var(--text-color); font-size: var(--fs-sm) !important;
+    text-decoration: none;
 }
+
+/* — Empty camera placeholder (no image yet) — */
 .cam-placeholder {
-    display: flex;
-    flex-direction: column; align-items: center; justify-content: center;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
     min-height: 200px; background: rgba(46,125,50,0.04);
-    border: 2px dashed rgba(46,125,50,0.3); border-radius: 10px;
+    border: 2px dashed rgba(46,125,50,0.3); border-radius: var(--r-md);
     text-align: center; padding: 20px;
 }
-.ph-badge {
-    display: inline-block; border-radius: 6px; padding: 2px 10px;
-    font-size: 10px !important; font-weight: 700; letter-spacing: 1px;
-    text-transform: uppercase; margin-left: 6px; vertical-align: middle;
+
+/* — Feed image sizing — */
+[data-testid="stImage"] { margin-top: 0 !important; margin-bottom: 0 !important; }
+[data-testid="stImage"] img {
+    border-radius: var(--r-sm) !important;
+    max-height: var(--img-h) !important;           /* ← feed image height */
+    object-fit: cover !important; width: 100% !important;
 }
-.ph-acidic   { background: rgba(239,83,80,0.18);  border: 1px solid rgba(239,83,80,0.5);  color: #ef9a9a; }
-.ph-neutral  { background: rgba(76,175,80,0.18);  border: 1px solid rgba(76,175,80,0.5);  color: #81c784; }
-.ph-alkaline { background: rgba(66,165,245,0.18); border: 1px solid rgba(66,165,245,0.5); color: #90CAF9; }
-.ph-metric-wrap {
-    background: var(--secondary-background-color); border: 1px solid rgba(76,175,80,0.3);
-    border-radius: 10px; padding: 8px 6px; text-align: center;
-}
-.ph-metric-label {
-    font-weight: 700; font-size: 11px; color: #66bb6a;
-    letter-spacing: 1.2px; text-transform: uppercase;
-}
-.ph-metric-value {
-    font-size: 24px; font-weight: 900; color: var(--text-color); margin-top: 1px;
-}
-.js-plotly-plot, .plotly, .plot-container { max-height: 210px !important; }
-[data-testid="stPlotlyChart"] { height: 210px !important; overflow: hidden !important; }
+
+/* — Data table — */
 [data-testid="stDataFrame"] {
     max-height: 300px !important; overflow-y: auto !important;
-    font-size: 13px !important;
+    font-size: var(--fs-base) !important;
 }
+
+/* — Alert banners (st.warning, st.error, etc.) — */
 [data-testid="stAlert"] {
-    padding: 8px 12px !important; font-size: 13px !important;
-    border-radius: 8px !important;
-    margin: 4px 0 !important;
+    padding: 8px 12px !important; font-size: var(--fs-base) !important;
+    border-radius: var(--r-sm) !important; margin: 4px 0 !important;
 }
+
+/* — Selectbox — */
 [data-testid="stSelectbox"] { margin-bottom: 4px !important; }
 [data-baseweb="select"] { min-height: 42px !important; }
-.stSelectbox label { font-size: 12px !important;
-color: var(--text-color) !important; margin-bottom: 2px !important; }
-.stTextInput label { color: var(--text-color) !important; font-weight: 600 !important; font-size: 13px !important;
+.stSelectbox label {
+    font-size: var(--fs-sm) !important; color: var(--text-color) !important;
+    margin-bottom: 2px !important;
 }
+
+/* — Text input — */
+.stTextInput label {
+    color: var(--text-color) !important;
+    font-weight: var(--fw-semi) !important;
+    font-size: var(--fs-base) !important;
+}
+
+/* — Column padding — */
+[data-testid="column"] { height: 100%; padding: 0 4px !important; }
+
+/* — Plotly charts — */
+.js-plotly-plot, .plotly, .plot-container { max-height: var(--chart-h) !important; }
+[data-testid="stPlotlyChart"] { height: var(--chart-h) !important; overflow: hidden !important; }
+
+/* — Pulse animation (used by live-indicator elements) — */
+@keyframes pulse {
+    0%,100% { box-shadow: 0 0 5px var(--c-brand); }
+    50%      { box-shadow: 0 0 14px var(--c-brand); opacity: 0.7; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 6 · LANDING PAGE BUTTON & LOGIN FORM
+   ► "Let's Start" button colors: gradient from --c-brand-dark to --c-brand
+   ► Login form input border: rgba(165,214,167,0.45)
+   ► Login submit button: same green gradient
+══════════════════════════════════════════════════════════════════════ */
 .landing-btn-wrapper button {
-    background: linear-gradient(135deg, #2e7d32, #66bb6a) !important;
-    border: 2px solid rgba(255,255,255,0.3) !important; border-radius: 50px !important;
-    color: white !important; font-size: 24px !important; font-weight: 700 !important;
+    background: linear-gradient(135deg, var(--c-brand-dark), var(--c-brand-light)) !important;
+    border: 2px solid rgba(255,255,255,0.3) !important;
+    border-radius: 50px !important;
+    color: white !important;
+    font-size: 24px !important;                   /* ← landing button font size */
+    font-weight: var(--fw-bold) !important;
     padding: 14px 48px !important; cursor: pointer !important;
-    letter-spacing: 2px !important;
-    text-transform: uppercase !important;
-    min-height: 64px !important; transition: transform 0.2s, box-shadow 0.2s !important;
+    letter-spacing: 2px !important; text-transform: uppercase !important;
+    min-height: 64px !important;
+    transition: transform 0.2s, box-shadow 0.2s !important;
     box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
     width: auto !important;
 }
@@ -271,166 +508,234 @@ color: var(--text-color) !important; margin-bottom: 2px !important; }
     box-shadow: 0 12px 32px rgba(76,175,80,0.7) !important;
 }
 .landing-page section[data-testid="stSidebar"] { display: none !important; }
+
+/* — Login form card — */
 [data-testid="stForm"] {
     background: var(--secondary-background-color) !important;
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border-radius: 18px; border: 1px solid rgba(165,214,167,0.35);
+    border-radius: var(--r-lg); border: 1px solid rgba(165,214,167,0.35);
     box-shadow: 0 12px 40px rgba(0,0,0,0.15); padding: 26px 36px 34px !important;
 }
 [data-testid="stForm"] input {
     background: var(--background-color) !important; color: var(--text-color) !important;
-    border: 1px solid rgba(165,214,167,0.45) !important; border-radius: 10px !important;
-    font-size: 16px !important; min-height: 48px !important;
+    border: 1px solid rgba(165,214,167,0.45) !important;
+    border-radius: var(--r-md) !important;
+    font-size: var(--fs-nav) !important; min-height: 48px !important;
 }
-[data-testid="stForm"] input::placeholder { color: var(--text-color) !important; opacity: 0.6 !important; }
+[data-testid="stForm"] input::placeholder {
+    color: var(--text-color) !important; opacity: 0.6 !important;
+}
 [data-testid="stForm"] button[kind="primaryFormSubmit"] {
-    background: linear-gradient(90deg, #2e7d32, #66bb6a) !important;
-    border: none !important; color: #fff !important; font-weight: 700 !important;
-    border-radius: 10px !important; letter-spacing: 1.5px; font-size: 16px !important;
+    background: linear-gradient(90deg, var(--c-brand-dark), var(--c-brand-light)) !important;
+    border: none !important; color: #fff !important;
+    font-weight: var(--fw-bold) !important;
+    border-radius: var(--r-md) !important; letter-spacing: 1.5px;
+    font-size: var(--fs-nav) !important;
     padding: 12px !important; min-height: 52px !important; margin-top: 4px !important;
 }
-@keyframes pulse {
-    0%,100% { box-shadow: 0 0 5px #4CAF50; }
-    50%      { box-shadow: 0 0 14px #4CAF50; opacity: 0.7; }
-}
-[data-testid="column"] { height: 100%; padding: 0 4px !important; }
-.main .block-container { display: flex; flex-direction: column; overflow: hidden; }
-.main .block-container > [data-testid="stVerticalBlock"] { flex: 1; overflow: hidden; }
-[data-testid="stImage"] { margin-top: 0 !important; margin-bottom: 0 !important; }
-[data-testid="stImage"] img {
-    border-radius: 8px !important; max-height: 260px !important;
-    object-fit: cover !important; width: 100% !important;
-}
 
-/* Greenhouse AI Summary card */
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 7 · GREENHOUSE AI SUMMARY PANEL
+   ► Card background tints: rgba values for healthy/warning/critical.
+   ► Label font sizes: --fs-xs and --fs-sm.
+   ► Finding row label color: #a5d6a7  (soft green on dark backgrounds).
+   ► To make text larger in the summary panel, change --fs-xs and --fs-sm
+     in SECTION 1 or override the px values here.
+══════════════════════════════════════════════════════════════════════ */
+
+/* — Outer status card — */
 .gh-summary-card {
-    border-radius: 11px; padding: 14px 16px; margin: 4px 0 8px;
-    font-size: 11px; line-height: 1.8;
+    border-radius: var(--r-md); padding: 14px 16px; margin: 4px 0 8px;
+    font-size: var(--fs-sm); line-height: 1.8;     /* ← summary text size */
 }
-.gh-summary-healthy  { background: rgba(46,125,50,0.18);  border: 1px solid #81c784; }
-.gh-summary-warning  { background: rgba(230,81,0,0.18); border: 1px solid #ffb74d; }
-.gh-summary-critical { background: rgba(183,28,28,0.18);  border: 1px solid #ef9a9a; }
-.gh-summary-pending  { background: rgba(33,33,33,0.35); border: 1px solid #555; }
-.gh-summary-unknown  { background: rgba(21,101,192,0.12); border: 1px solid #90CAF9; }
+.gh-summary-healthy  { background: rgba(46,125,50,0.18);  border: 1px solid var(--c-healthy-light); }
+.gh-summary-warning  { background: rgba(230,81,0,0.18);   border: 1px solid var(--c-warning-light); }
+.gh-summary-critical { background: rgba(183,28,28,0.18);  border: 1px solid var(--c-critical-light); }
+.gh-summary-pending  { background: rgba(33,33,33,0.35);   border: 1px solid var(--c-pending); }
+.gh-summary-unknown  { background: rgba(21,101,192,0.12); border: 1px solid var(--c-info-light); }
 
-/* Finding rows inside summary card */
+/* — Finding rows inside summary card — */
 .gh-finding-row {
     display: flex; gap: 6px; align-items: baseline;
-    font-size: 10px; margin: 2px 0; padding: 2px 0;
+    font-size: var(--fs-xs); margin: 2px 0; padding: 2px 0;
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .gh-finding-label {
-    color: #a5d6a7; font-weight: 700; min-width: 110px;
-    letter-spacing: 0.3px; text-transform: uppercase; font-size: 9px;
+    color: var(--c-brand-xlight); font-weight: var(--fw-bold);
+    min-width: 110px; letter-spacing: 0.3px;
+    text-transform: uppercase; font-size: 9px;   /* ← finding label size */
 }
-.gh-finding-value { color: #e8f5e9; flex: 1; }
-.gh-finding-high     { color: #ef9a9a !important; }
-.gh-finding-low      { color: #ffb74d !important; }
-.gh-finding-normal   { color: #81c784 !important; }
+.gh-finding-value  { color: var(--text-color); flex: 1; }
+.gh-finding-high   { color: var(--c-critical-light) !important; }
+.gh-finding-low    { color: var(--c-warning-light) !important; }
+.gh-finding-normal { color: var(--c-healthy-light) !important; }
 
-/* Affected plant pills */
+/* — Plant status pills — */
 .tally-pill {
     display: inline-block; border-radius: 20px; padding: 2px 10px;
-    font-size: 10px; font-weight: 700; margin: 0 3px; letter-spacing: 0.5px;
+    font-size: var(--fs-xs); font-weight: var(--fw-bold);
+    margin: 0 3px; letter-spacing: 0.5px;
 }
-.tally-healthy  { background: rgba(46,125,50,0.3);  border:1px solid #81c784; color:#81c784; }
-.tally-warning  { background: rgba(230,81,0,0.3);   border:1px solid #ffb74d; color:#ffb74d; }
-.tally-critical { background: rgba(183,28,28,0.3);  border:1px solid #ef9a9a; color:#ef9a9a; }
+.tally-healthy  { background: rgba(46,125,50,0.3);  border: 1px solid var(--c-healthy-light);  color: var(--c-healthy-light); }
+.tally-warning  { background: rgba(230,81,0,0.3);   border: 1px solid var(--c-warning-light);  color: var(--c-warning-light); }
+.tally-critical { background: rgba(183,28,28,0.3);  border: 1px solid var(--c-critical-light); color: var(--c-critical-light); }
 
-/* SMS sent badge */
+/* — SMS sent / not-sent badges — */
 .sms-sent-badge {
     display: inline-block; background: rgba(21,101,192,0.25);
-    border: 1px solid #90CAF9; border-radius: 4px;
-    padding: 1px 6px; font-size: 9px; color: #90CAF9; font-weight: 700;
-    margin-left: 6px; vertical-align: middle; letter-spacing: 0.5px;
+    border: 1px solid var(--c-info-light); border-radius: 4px;
+    padding: 1px 6px; font-size: 9px; color: var(--c-info-light);
+    font-weight: var(--fw-bold); margin-left: 6px; vertical-align: middle;
+    letter-spacing: 0.5px;
 }
 .sms-no-badge {
     display: inline-block; background: rgba(66,66,66,0.25);
     border: 1px solid #888; border-radius: 4px;
-    padding: 1px 6px; font-size: 9px; color: #aaa; font-weight: 700;
-    margin-left: 6px; vertical-align: middle;
+    padding: 1px 6px; font-size: 9px; color: #aaa;
+    font-weight: var(--fw-bold); margin-left: 6px; vertical-align: middle;
 }
 
-/* Sensor Summary block */
+/* — Sensor summary block — */
 .gh-sensor-summary {
-    font-size: 10px; color: var(--text-color); line-height: 1.7;
-    background: rgba(46,125,50,0.08); border-radius: 6px;
+    font-size: var(--fs-xs); color: var(--text-color); line-height: 1.7;
+    background: rgba(46,125,50,0.08); border-radius: var(--r-sm);
     padding: 6px 8px; margin-bottom: 8px;
     border-left: 3px solid rgba(76,175,80,0.4);
 }
 
-/* Alert list items */
+/* — Alert list items — */
 .gh-alert-item {
     padding: 4px 8px; margin: 3px 0;
-    background: rgba(183,28,28,0.10); border-left: 3px solid #ef9a9a;
-    border-radius: 0 6px 6px 0;
-    font-size: 10px; color: #ef9a9a; line-height: 1.5;
+    background: rgba(183,28,28,0.10);
+    border-left: 3px solid var(--c-critical-light);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    font-size: var(--fs-xs); color: var(--c-critical-light); line-height: 1.5;
 }
 .gh-alert-none {
-    font-size: 10px; color: var(--text-color); font-style: italic; padding: 2px 0;
+    font-size: var(--fs-xs); color: var(--text-color);
+    font-style: italic; padding: 2px 0;
 }
 
-/* Recommendation bullet items */
+/* — Recommendation bullet items — */
 .gh-rec-item {
-    padding: 3px 0; font-size: 10px; color: var(--text-color);
-    line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,0.04);
+    padding: 3px 0; font-size: var(--fs-xs);  /* ← rec text size */
+    color: var(--text-color);
+    line-height: 1.6;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
     display: flex; gap: 6px; align-items: flex-start;
 }
-.gh-rec-bullet {
-    color: var(--text-color); font-weight: 900; flex-shrink: 0; margin-top: 1px;
+.gh-rec-bullet { color: var(--text-color); font-weight: var(--fw-black); flex-shrink: 0; margin-top: 1px; }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   7-INCH DISPLAY NOTE
+   The styles above (Sections 1-7) ARE the 7-inch 1024×600 layout.
+   No media query is needed for the Pi screen — it is the default.
+   If you are only ever using the 7-inch display, you can safely
+   ignore Sections 8 and 9 below.
+══════════════════════════════════════════════════════════════════════ */
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 8 · RESPONSIVE — MOBILE  (screen width < 768px)
+   ► Sidebar hides automatically.
+   ► App becomes vertically scrollable (no fixed height).
+   ► Metric values shrink slightly.
+   ► Section title and body text grow for finger-friendly reading.
+   ► Touch targets are at least 44px tall.
+   ► Edit font sizes here without touching Section 1 tokens.
+══════════════════════════════════════════════════════════════════════ */
+@media screen and (max-width: 767px) {
+
+    /* — Hide sidebar on mobile — */
+    section[data-testid="stSidebar"] { display: none !important; }
+
+    /* — Remove the sidebar left-margin offset on mobile — */
+    [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
+
+    /* — Allow vertical scrolling — */
+    html, body, .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewBlockContainer"],
+    .main, .main .block-container {
+        overflow-y: auto !important;
+        height: auto !important;
+        max-height: none !important;
+    }
+
+    /* — Comfortable content padding — */
+    .main .block-container {
+        padding: 12px 10px !important;
+    }
+
+    /* — Metric value slightly smaller on narrow screens — */
+    div[data-testid="stMetricValue"],
+    .ph-metric-value {
+        font-size: 20px !important;                /* ← mobile metric value size */
+    }
+
+    /* — Section titles — */
+    .section-title {
+        font-size: 15px !important;               /* ← mobile section title size */
+        margin-bottom: 10px !important;
+    }
+
+    /* — Body / summary text: slightly larger for poor eyesight — */
+    html, body { font-size: 15px !important; }     /* ← mobile base font size    */
+    .gh-summary-card  { font-size: 13px !important; }
+    .gh-finding-label { font-size: 10px !important; }
+    .gh-rec-item      { font-size: 12px !important; }
+
+    /* — Chart height on mobile — */
+    .js-plotly-plot, .plotly, .plot-container { max-height: 250px !important; }
+    [data-testid="stPlotlyChart"]             { height: 250px !important; }
+
+    /* — Touch-friendly minimum heights — */
+    [data-baseweb="select"] { min-height: 50px !important; }
+    [data-testid="stForm"] input { min-height: 52px !important; }
 }
 
-/* Sidebar collapse button — hide entirely */
-[data-testid="stSidebar"] > div:first-child > div:first-child {
-    display: none !important; visibility: hidden !important;
-    height: 0 !important;
-}
-[data-testid="collapsedControl"],
-button[title="Collapse sidebar"],
-button[aria-label="Collapse sidebar"] {
-    display: none !important;
-    visibility: hidden !important; opacity: 0 !important;
-    pointer-events: none !important;
-    width: 0 !important;
-    height: 0 !important;
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 9 · RESPONSIVE — DESKTOP  (screen width ≥ 1025px)
+   ► Sidebar stays visible (same as 7-inch base styles).
+   ► Content area allows vertical scrolling for long pages.
+   ► Fonts can be made larger here for high-DPI / large monitors.
+   ► Edit independently from the 7-inch base in Sections 1-7.
+══════════════════════════════════════════════════════════════════════ */
+@media screen and (min-width: 1025px) {
+
+    /* — Allow vertical scrolling on tall content — */
+    [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewBlockContainer"],
+    .main, .main .block-container {
+        overflow-y: auto !important;
+        height: auto !important;
+        max-height: none !important;
+    }
+
+    /* — Optional: slightly larger base text on desktop monitors —    */
+    /* Uncomment the line below if you want bigger text on desktop:   */
+    /* html, body { font-size: 15px !important; }                     */
+
+    /* — Optional: taller charts on wide screens —                    */
+    /* .js-plotly-plot, .plotly, .plot-container { max-height: 280px !important; } */
+    /* [data-testid="stPlotlyChart"] { height: 280px !important; }    */
 }
 
-/* Stop sidebar from animating / moving */
-section[data-testid="stSidebar"],
-.stAppViewMain {
-    transition: none !important;
-    animation: none !important; transform: none !important;
-}
-
-/* Lock sidebar at exactly 230px, fixed to left edge */
-section[data-testid="stSidebar"] {
-    width: 230px !important; min-width: 230px !important;
-    max-width: 230px !important;
-    position: fixed !important;
-    left: 0 !important;
-    margin-left: 0 !important;
-}
-
-/* Hide the drag-to-resize handle */
-[data-testid="stSidebarResizer"],
-section[data-testid="stSidebar"] > div:last-child {
-    display: none !important;
-    pointer-events: none !important;
-}
-
-/* NOTE: margin-left: 230px on stAppViewContainer is injected
-   dynamically by Python — dashboard page ONLY.
-   Login and landing pages hide the sidebar so they must NOT get this offset.
-*/
 </style>
 """
 st.markdown(OPTIMIZED_CSS, unsafe_allow_html=True)
 
-# Sidebar margin — dashboard page only
+# ── Sidebar margin — dashboard page only ─────────────────────────────
+# NOTE: This injects margin-left equal to the sidebar width so the
+# main content doesn't sit under the fixed sidebar.
+# If you change --sidebar-w in Section 1, also update 230px here.
 if st.session_state.get("logged_in") and st.session_state.get("page") == "dashboard":
     st.markdown("""<style>
     [data-testid="stAppViewContainer"] {
-        margin-left: 230px !important;
+        margin-left: 230px !important;   /* ← match --sidebar-w in Section 1 */
     }
     </style>""", unsafe_allow_html=True)
 
@@ -630,7 +935,7 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
 
         # Findings section with 6 subsections
         findings_raw = _find_new(r'Findings:\s*(.*?)(?=\n\nRecommendation:|\Z)', "")
-        
+
         # Parse each Finding subsection
         img_match = re.search(r'Images:\s*(.+?)(?=\nDisease:|\nSoil|\nTemperature:|\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
         disease_match = re.search(r'Disease:\s*(.+?)(?=\nSoil|\nTemperature:|\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
@@ -638,7 +943,7 @@ def parse_ai_summary(ai_summary_str: str) -> dict:
         temp_match = re.search(r'Temperature:\s*(.+?)(?=\nHumidity:|\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
         hum_match = re.search(r'Humidity:\s*(.+?)(?=\npH|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
         ph_match = re.search(r'pH Level:\s*(.+?)(?=\n\n|\Z)', findings_raw, re.IGNORECASE | re.DOTALL)
-        
+
         result['finding_image'] = img_match.group(1).strip() if img_match else "N/A"
         result['finding_disease'] = disease_match.group(1).strip() if disease_match else "N/A"
         result['finding_soil'] = soil_match.group(1).strip() if soil_match else "N/A"
@@ -764,7 +1069,7 @@ def _finding_class(value_str: str) -> str:
 def _status_label_to_display(status_label: str) -> str:
     """Maps 'High Risk' → '🔴 High Risk', 'Moderate Risk' → '⚠️ Moderate Risk', etc."""
     sl = status_label.lower()
-    if 'high' in sl:   return f"🔴 {status_label}"
+    if 'high' in sl:     return f"🔴 {status_label}"
     if 'moderate' in sl: return f"⚠️ {status_label}"
     if 'healthy' in sl:  return f"✅ {status_label}"
     return f"ℹ️ {status_label}"
@@ -833,7 +1138,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         alert_list    = parsed.get('alert_list', [])
         recs          = parsed.get('recommendations', [])
         sms_line      = parsed.get('sms_line', '')
-        
+
         # Findings data
         finding_img      = parsed.get('finding_image', 'N/A')
         finding_disease  = parsed.get('finding_disease', 'N/A')
