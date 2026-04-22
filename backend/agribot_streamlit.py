@@ -648,10 +648,28 @@ div[data-testid="stMetricValue"] {
 ══════════════════════════════════════════════════════════════════════ */
 @media screen and (max-width: 767px) {
 
-    /* — Hide sidebar on mobile — */
-    section[data-testid="stSidebar"] { display: none !important; }
+    /* — On mobile the sidebar becomes Streamlit's native slide-over overlay.
+         Restore the hamburger toggle button so the user can open/close it.
+         The sidebar does NOT disappear — it slides in over the content. — */
+    [data-testid="collapsedControl"],
+    button[title="Collapse sidebar"],
+    button[aria-label="Collapse sidebar"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        width: auto !important;
+        height: auto !important;
+    }
 
-    /* — Remove the sidebar left-margin offset on mobile — */
+    /* — Sidebar overlays content on mobile (no column push) — */
+    section[data-testid="stSidebar"] {
+        position: fixed !important;
+        z-index: 999 !important;
+        width: var(--sidebar-w) !important;
+    }
+
+    /* — No left margin on mobile since sidebar is an overlay, not a column — */
     [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
 
     /* — Allow vertical scrolling — */
