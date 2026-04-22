@@ -498,7 +498,7 @@ div[data-testid="stMetricValue"] {
     font-weight: var(--fw-bold) !important;
     padding: 14px 48px !important; cursor: pointer !important;
     letter-spacing: 2px !important; text-transform: uppercase !important;
-    min-height: 100px !important;
+    min-height: 64px !important;
     transition: transform 0.2s, box-shadow 0.2s !important;
     box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
     width: auto !important;
