@@ -1352,7 +1352,7 @@ def show_landing():
 
     col1, col2, col3 = st.columns([3, 2, 9])
     with col2:
-        st.markdown("<div style='margin-top: 30vh;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top: 50vh;'></div>", unsafe_allow_html=True)
         st.markdown("<div style='margin-left: -45vh;'></div>", unsafe_allow_html=True)
         st.markdown('<div class="landing-btn-wrapper">', unsafe_allow_html=True)
         if st.button("Let's Start", use_container_width=True, key="landing_btn"):
