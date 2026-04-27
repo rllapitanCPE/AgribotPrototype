@@ -562,7 +562,7 @@ div[data-testid="stMetricValue"] {
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .gh-finding-label {
-    color: #ffffff; font-weight: var(--fw-bold);
+    color: #66bb6a; font-weight: var(--fw-bold);
     min-width: 110px; letter-spacing: 0.3px;
     text-transform: uppercase; font-size: 9px;   /* ← finding label size */
 }
