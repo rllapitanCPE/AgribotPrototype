@@ -1231,7 +1231,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             f'{critical_html}'
             f'</div>'
             f'<div style="margin-bottom:6px;">'
-            f'<div style="font-size:9px;font-weight:700;color:#a5d6a7;'
+            f'<div style="font-size:9px;font-weight:700;color:#66bb6a;'
             f'letter-spacing:0.8px;text-transform:uppercase;margin-bottom:4px;">'
             f'FINDINGS</div>'
             f'{findings_html}'
