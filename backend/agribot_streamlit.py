@@ -347,7 +347,7 @@ div[data-testid="stMetricValue"] {
 }
 .ph-metric-label {
     font-weight: var(--fw-bold); font-size: var(--fs-label);
-    color: #000000; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--text-color); letter-spacing: 1.2px; text-transform: uppercase;
 }
 .ph-metric-value {
     font-size: var(--fs-value); font-weight: var(--fw-black);
@@ -1143,10 +1143,10 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
 
     status = parsed.get('status', 'Unknown')
     color_map = {
-        "Healthy":  ("#000000", "gh-summary-healthy",  "✅"),
-        "Warning":  ("#000000", "gh-summary-warning",  "⚠️"),
-        "Critical": ("#000000", "gh-summary-critical", "🔴"),
-        "Unknown":  ("#000000", "gh-summary-unknown",  "ℹ️"),
+        "Healthy":  ("var(--text-color)", "gh-summary-healthy",  "✅"),
+        "Warning":  ("var(--text-color)", "gh-summary-warning",  "⚠️"),
+        "Critical": ("var(--text-color)", "gh-summary-critical", "🔴"),
+        "Unknown":  ("var(--text-color)", "gh-summary-unknown",  "ℹ️"),
     }
     txt_c, css_cls, icon = color_map.get(status, ("var(--text-color);", "gh-summary-unknown", "ℹ️"))
 
