@@ -347,7 +347,7 @@ div[data-testid="stMetricValue"] {
 }
 .ph-metric-label {
     font-weight: var(--fw-bold); font-size: var(--fs-label);
-    color: var(--c-brand-light); letter-spacing: 1.2px; text-transform: uppercase;
+    color: #000000; letter-spacing: 1.2px; text-transform: uppercase;
 }
 .ph-metric-value {
     font-size: var(--fs-value); font-weight: var(--fw-black);
