@@ -1143,10 +1143,10 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
 
     status = parsed.get('status', 'Unknown')
     color_map = {
-        "Healthy":  ("#ffffff", "gh-summary-healthy",  "✅"),
-        "Warning":  ("#ffffff", "gh-summary-warning",  "⚠️"),
-        "Critical": ("#ffffff", "gh-summary-critical", "🔴"),
-        "Unknown":  ("#ffffff", "gh-summary-unknown",  "ℹ️"),
+        "Healthy":  ("#000000", "gh-summary-healthy",  "✅"),
+        "Warning":  ("#000000", "gh-summary-warning",  "⚠️"),
+        "Critical": ("#000000", "gh-summary-critical", "🔴"),
+        "Unknown":  ("#000000", "gh-summary-unknown",  "ℹ️"),
     }
     txt_c, css_cls, icon = color_map.get(status, ("var(--text-color);", "gh-summary-unknown", "ℹ️"))
 
