@@ -1148,7 +1148,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
         "Critical": ("#ffffff", "gh-summary-critical", "🔴"),
         "Unknown":  ("#ffffff", "gh-summary-unknown",  "ℹ️"),
     }
-    txt_c, css_cls, icon = color_map.get(status, ("#66bb6a;", "gh-summary-unknown", "ℹ️"))
+    txt_c, css_cls, icon = color_map.get(status, ("var(--text-color);", "gh-summary-unknown", "ℹ️"))
 
     # ── RENDER NEW FORMAT (with Findings section) ─────────────────────────
     if parsed.get('__new_format__'):
