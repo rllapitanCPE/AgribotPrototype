@@ -327,8 +327,10 @@ div[data-testid="stMetric"] {
 div[data-testid="stMetricLabel"] {
     font-weight: var(--fw-bold) !important;
     font-size: var(--fs-label) !important;
-    color: var(--c-brand-light) !important;       /* ← change label color here */
+    font-size: var(--fs-label); !important;
+    color: #000000 !important;       /* ← change label color here */
     letter-spacing: 1.2px !important;
+    text-align: center;
     text-transform: uppercase !important;
     justify-content: center !important;
 }
