@@ -1225,7 +1225,7 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
             f'<div style="font-weight:900;color:{txt_c};font-size:13px;'
             f'margin-bottom:6px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
             f'{icon} Overall Status: <b>{status_label}</b>'
-            f'<span style="font-size:9px;color:var(--text-color);font-weight:400;margin-left:6px;">{ts}</span>'
+            f'<span style="font-size:9px;color:#66bb6a;font-weight:400;margin-left:6px;">{ts}</span>'
             f'</div>'
             f'<div style="margin-bottom:8px;">'
             f'{critical_html}'
