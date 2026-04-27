@@ -123,8 +123,8 @@ OPTIMIZED_CSS = """
 
   /* Lighter variants used for backgrounds / pills on dark screens     */
   --c-healthy-light:   #81c784;
-  --c-warning-light:   #ffb74d;
-  --c-critical-light:  #ef9a9a;
+  --c-warning-light:   #ffffff;
+  --c-critical-light:  #ffffff;
   --c-info-light:      #90CAF9;
 
   /* ── FONT FAMILY ────────────────────────────────────────────────── */
@@ -562,7 +562,7 @@ div[data-testid="stMetricValue"] {
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .gh-finding-label {
-    color: var(--c-brand-xlight); font-weight: var(--fw-bold);
+    color: #ffffff; font-weight: var(--fw-bold);
     min-width: 110px; letter-spacing: 0.3px;
     text-transform: uppercase; font-size: 9px;   /* ← finding label size */
 }
@@ -577,9 +577,9 @@ div[data-testid="stMetricValue"] {
     font-size: var(--fs-xs); font-weight: var(--fw-bold);
     margin: 0 3px; letter-spacing: 0.5px;
 }
-.tally-healthy  { background: rgba(46,125,50,0.3);  border: 1px solid var(--c-healthy-light);  color: var(--c-healthy-light); }
-.tally-warning  { background: rgba(230,81,0,0.3);   border: 1px solid var(--c-warning-light);  color: var(--c-warning-light); }
-.tally-critical { background: rgba(183,28,28,0.3);  border: 1px solid var(--c-critical-light); color: var(--c-critical-light); }
+.tally-healthy  { background: rgba(46,125,50,0.4);  border: 1px solid #81c784; color: #ffffff; }
+.tally-warning  { background: rgba(230,81,0,0.5);   border: 1px solid #ffb74d; color: #ffffff; }
+.tally-critical { background: rgba(183,28,28,0.5);  border: 1px solid #ff6b6b; color: #ffffff; }
 
 /* — SMS sent / not-sent badges — */
 .sms-sent-badge {
@@ -1143,10 +1143,10 @@ def render_greenhouse_summary_panel(df: pd.DataFrame):
 
     status = parsed.get('status', 'Unknown')
     color_map = {
-        "Healthy":  ("#81c784", "gh-summary-healthy",  "✅"),
-        "Warning":  ("#ffb74d", "gh-summary-warning",  "⚠️"),
-        "Critical": ("#ef9a9a", "gh-summary-critical", "🔴"),
-        "Unknown":  ("#90CAF9", "gh-summary-unknown",  "ℹ️"),
+        "Healthy":  ("#ffffff", "gh-summary-healthy",  "✅"),
+        "Warning":  ("#ffffff", "gh-summary-warning",  "⚠️"),
+        "Critical": ("#ffffff", "gh-summary-critical", "🔴"),
+        "Unknown":  ("#ffffff", "gh-summary-unknown",  "ℹ️"),
     }
     txt_c, css_cls, icon = color_map.get(status, ("var(--text-color);", "gh-summary-unknown", "ℹ️"))
 
